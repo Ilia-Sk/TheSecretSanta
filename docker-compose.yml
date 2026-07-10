@@ -1,0 +1,22 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: secret-santa-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: secret_santa
+      MYSQL_USER: santa
+      MYSQL_PASSWORD: santa_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "23307:3306"
+    volumes:
+      - secret-santa-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  secret-santa-mysql-data:

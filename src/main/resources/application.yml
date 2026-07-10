@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: TheSecretSanta
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:23307/secret_santa?createDatabaseIfNotExist=true&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:santa}
+    password: ${SPRING_DATASOURCE_PASSWORD:santa_password}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+
+app:
+  security:
+    jwt-secret: ${JWT_SECRET:change-this-secret-key-change-this-secret-key}
+    jwt-expiration-ms: 86400000
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
