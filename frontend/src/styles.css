@@ -733,6 +733,19 @@ textarea {
   transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
 }
 
+.text-button {
+  border: 0;
+  padding: 0;
+  color: #8f1825;
+  background: transparent;
+  font-weight: 900;
+  text-align: center;
+}
+
+.text-button:hover {
+  color: #c42a36;
+}
+
 .submit-button, .primary-action {
   color: #fff;
   background: linear-gradient(135deg, #0b7a62, #095744);
@@ -1021,6 +1034,11 @@ textarea {
   padding: 12px 14px;
   color: #76242d;
   background: #fff0f1;
+}
+
+.inline-alert {
+  width: 100%;
+  margin: 0;
 }
 
 .notice {

@@ -2,6 +2,7 @@ export type AuthResponse = {
   token: string;
   userId: number;
   email: string;
+  login: string;
   displayName: string;
   avatarUrl: string | null;
 };
@@ -49,6 +50,7 @@ export type MyAssignment = {
 export type Profile = {
   id: number;
   email: string;
+  login: string;
   displayName: string;
   avatarUrl: string | null;
 };
@@ -81,5 +83,25 @@ export async function request<T>(path: string, options: RequestInit = {}, token?
   if (response.status === 204) {
     return undefined as T;
   }
+  return response.json();
+}
+
+export async function uploadFile<T>(path: string, file: File, token: string): Promise<T> {
+  const body = new FormData();
+  body.append('file', file);
+
+  const response = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.message ?? 'Upload failed');
+  }
+
   return response.json();
 }

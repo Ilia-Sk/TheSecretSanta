@@ -26,6 +26,9 @@ public class User implements UserDetails {
     @Column(nullable = false, unique = true, length = 160)
     private String email;
 
+    @Column(unique = true, length = 60)
+    private String username;
+
     @Column(nullable = false)
     private String password;
 
@@ -45,8 +48,9 @@ public class User implements UserDetails {
     protected User() {
     }
 
-    public User(String email, String password, String displayName) {
+    public User(String email, String username, String password, String displayName) {
         this.email = email;
+        this.username = username;
         this.password = password;
         this.displayName = displayName;
     }
@@ -57,6 +61,10 @@ public class User implements UserDetails {
 
     public String getEmail() {
         return email;
+    }
+
+    public String getLogin() {
+        return username;
     }
 
     public String getDisplayName() {
@@ -70,6 +78,14 @@ public class User implements UserDetails {
     public void updateProfile(String displayName, String avatarUrl) {
         this.displayName = displayName;
         this.avatarUrl = avatarUrl;
+    }
+
+    public void updateAvatar(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
+    public void updatePassword(String password) {
+        this.password = password;
     }
 
     public Role getRole() {
@@ -88,6 +104,6 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() {
-        return email;
+        return username != null ? username : email;
     }
 }

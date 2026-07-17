@@ -1,6 +1,8 @@
 package org.example.thesecretsanta.room.service;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.example.thesecretsanta.config.AppProperties;
+import org.example.thesecretsanta.mail.MailService;
 import org.example.thesecretsanta.room.dao.DrawRestrictionRepository;
 import org.example.thesecretsanta.room.dao.GiftAssignmentRepository;
 import org.example.thesecretsanta.room.dao.RoomParticipantRepository;
@@ -39,17 +41,23 @@ public class RoomService {
     private final RoomParticipantRepository participantRepository;
     private final DrawRestrictionRepository restrictionRepository;
     private final GiftAssignmentRepository assignmentRepository;
+    private final MailService mailService;
+    private final AppProperties appProperties;
 
     public RoomService(
             RoomRepository roomRepository,
             RoomParticipantRepository participantRepository,
             DrawRestrictionRepository restrictionRepository,
-            GiftAssignmentRepository assignmentRepository
+            GiftAssignmentRepository assignmentRepository,
+            MailService mailService,
+            AppProperties appProperties
     ) {
         this.roomRepository = roomRepository;
         this.participantRepository = participantRepository;
         this.restrictionRepository = restrictionRepository;
         this.assignmentRepository = assignmentRepository;
+        this.mailService = mailService;
+        this.appProperties = appProperties;
     }
 
     @Transactional
@@ -165,6 +173,7 @@ public class RoomService {
                 .orElseThrow(() -> new IllegalArgumentException("Cannot build a valid draw with the current restrictions"));
         assignmentRepository.saveAll(assignments);
         room.markDrawn();
+        sendDrawNotifications(room, assignments);
         return getRoom(roomId, currentUser);
     }
 
@@ -284,5 +293,28 @@ public class RoomService {
             return null;
         }
         return value.trim();
+    }
+
+    private void sendDrawNotifications(Room room, List<GiftAssignment> assignments) {
+        for (GiftAssignment assignment : assignments) {
+            RoomParticipant giver = assignment.getGiver();
+            RoomParticipant receiver = assignment.getReceiver();
+            String text = """
+                    В комнате "%s" проведена жеребьевка.
+
+                    Вы дарите подарок: %s
+
+                    Пожелания:
+                    %s
+
+                    Открыть сайт: %s
+                    """.formatted(
+                    room.getName(),
+                    receiver.getUser().getDisplayName(),
+                    receiver.getWishlist() == null ? "Пожелания не указаны." : receiver.getWishlist(),
+                    appProperties.publicUrl()
+            );
+            mailService.send(giver.getUser().getEmail(), "The Secret Santa: жеребьевка проведена", text);
+        }
     }
 }

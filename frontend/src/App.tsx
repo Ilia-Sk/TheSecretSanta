@@ -16,9 +16,9 @@ import {
   Users,
   WalletCards
 } from 'lucide-react';
-import { AuthResponse, InvitePreview, MyAssignment, Profile, Room, request } from './api';
+import { AuthResponse, InvitePreview, MyAssignment, Profile, Room, request, uploadFile } from './api';
 
-type AuthMode = 'login' | 'register';
+type AuthMode = 'login' | 'register' | 'forgot' | 'reset';
 type ViewMode = 'create' | 'room' | 'assignment' | 'profile';
 
 localStorage.removeItem('secret-santa-auth');
@@ -150,6 +150,7 @@ export function App() {
   const visibleProfile = profile ?? {
     id: auth.userId,
     email: auth.email,
+    login: auth.login,
     displayName: auth.displayName,
     avatarUrl: auth.avatarUrl
   };
@@ -279,6 +280,13 @@ function AuthScreen({ onAuth, onError, error }: {
   error: string | null;
 }) {
   const [mode, setMode] = useState<AuthMode>('login');
+  const resetToken = new URLSearchParams(window.location.search).get('token');
+
+  useEffect(() => {
+    if (window.location.pathname === '/reset-password' && resetToken) {
+      setMode('reset');
+    }
+  }, [resetToken]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -286,6 +294,7 @@ function AuthScreen({ onAuth, onError, error }: {
     const form = new FormData(event.currentTarget);
     const path = mode === 'login' ? '/auth/login' : '/auth/register';
     const payload = {
+      login: String(form.get('login')),
       email: String(form.get('email')),
       password: String(form.get('password')),
       displayName: String(form.get('displayName') ?? '')
@@ -294,11 +303,44 @@ function AuthScreen({ onAuth, onError, error }: {
     try {
       const auth = await request<AuthResponse>(path, {
         method: 'POST',
-        body: JSON.stringify(mode === 'login' ? { email: payload.email, password: payload.password } : payload)
+        body: JSON.stringify(mode === 'login' ? { login: payload.login, password: payload.password } : payload)
       });
       onAuth(auth);
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Auth failed');
+    }
+  }
+
+  async function submitForgotPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onError(null);
+    const form = new FormData(event.currentTarget);
+    try {
+      await request('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email: String(form.get('email')) })
+      });
+      onError('Если email зарегистрирован, письмо для восстановления отправлено.');
+      setMode('login');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Reset request failed');
+    }
+  }
+
+  async function submitResetPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onError(null);
+    const form = new FormData(event.currentTarget);
+    try {
+      await request('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token: resetToken, password: String(form.get('password')) })
+      });
+      window.history.replaceState({}, '', '/');
+      onError('Пароль изменен. Теперь можно войти.');
+      setMode('login');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Password reset failed');
     }
   }
 
@@ -320,12 +362,27 @@ function AuthScreen({ onAuth, onError, error }: {
             <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Регистрация</button>
           </div>
           {error && <div className="alert">{error}</div>}
-          <form onSubmit={submit} className="form-grid">
-            {mode === 'register' && <input name="displayName" placeholder="Имя" required />}
-            <input name="email" type="email" placeholder="Email" required />
-            <input name="password" type="password" placeholder="Пароль" minLength={6} required />
-            <button className="submit-button">{mode === 'login' ? 'Войти' : 'Создать аккаунт'}</button>
-          </form>
+          {mode === 'forgot' ? (
+            <form onSubmit={submitForgotPassword} className="form-grid">
+              <input name="email" type="email" placeholder="Email аккаунта" required />
+              <button className="submit-button">Отправить письмо</button>
+              <button className="text-button" type="button" onClick={() => setMode('login')}>Вернуться ко входу</button>
+            </form>
+          ) : mode === 'reset' ? (
+            <form onSubmit={submitResetPassword} className="form-grid">
+              <input name="password" type="password" placeholder="Новый пароль" minLength={6} required />
+              <button className="submit-button">Сменить пароль</button>
+            </form>
+          ) : (
+            <form onSubmit={submit} className="form-grid">
+              {mode === 'register' && <input name="displayName" placeholder="Имя" required />}
+              {mode === 'register' && <input name="email" type="email" placeholder="Email для уведомлений" required />}
+              <input name="login" placeholder="Логин" minLength={3} required />
+              <input name="password" type="password" placeholder="Пароль" minLength={6} required />
+              <button className="submit-button">{mode === 'login' ? 'Войти' : 'Создать аккаунт'}</button>
+              {mode === 'login' && <button className="text-button" type="button" onClick={() => setMode('forgot')}>Забыли пароль?</button>}
+            </form>
+          )}
         </div>
       </section>
     </main>
@@ -454,6 +511,7 @@ function ProfileView({ token, profile, onSaved }: {
   onSaved: (profile: Profile) => void;
 }) {
   const [saved, setSaved] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -469,26 +527,54 @@ function ProfileView({ token, profile, onSaved }: {
     setSaved(true);
   }
 
+  async function uploadAvatar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setUploadError(null);
+    const form = new FormData(event.currentTarget);
+    const file = form.get('avatar') as File | null;
+    if (!file || file.size === 0) {
+      setUploadError('Выберите файл');
+      return;
+    }
+    try {
+      const updated = await uploadFile<Profile>('/profile/avatar', file, token);
+      onSaved(updated);
+      setSaved(true);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+    }
+  }
+
   return (
     <section className="profile-view">
       <div className="profile-preview">
         <Avatar name={profile.displayName} avatarUrl={profile.avatarUrl} large />
         <h2>{profile.displayName}</h2>
+        <p>@{profile.login}</p>
         <p>{profile.email}</p>
       </div>
       <form className="profile-form" onSubmit={submit}>
-        <FormSection icon={<UserCircle size={20} />} title="Профиль" text="Добавьте имя и ссылку на фото. Позже можно заменить это настоящей загрузкой файла.">
+        <FormSection icon={<UserCircle size={20} />} title="Профиль" text="Обновите имя и фото профиля.">
           <div className="form-grid">
             <label>
               <span>Имя</span>
               <input name="displayName" defaultValue={profile.displayName} required />
             </label>
             <label>
-              <span>Ссылка на фото</span>
-              <input name="avatarUrl" defaultValue={profile.avatarUrl ?? ''} placeholder="https://..." />
+              <span>Фото сейчас</span>
+              <input name="avatarUrl" defaultValue={profile.avatarUrl ?? ''} placeholder="/uploads/..." readOnly />
             </label>
             <button className="submit-button">Сохранить профиль</button>
             {saved && <div className="success-note">Профиль обновлен</div>}
+          </div>
+        </FormSection>
+      </form>
+      <form className="profile-form" onSubmit={uploadAvatar}>
+        <FormSection icon={<UserCircle size={20} />} title="Фото профиля" text="Загрузите JPG, PNG или WEBP до 3 MB.">
+          <div className="form-grid">
+            <input name="avatar" type="file" accept="image/png,image/jpeg,image/webp" required />
+            <button className="submit-button">Загрузить фото</button>
+            {uploadError && <div className="alert inline-alert">{uploadError}</div>}
           </div>
         </FormSection>
       </form>

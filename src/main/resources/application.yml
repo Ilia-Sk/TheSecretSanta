@@ -12,11 +12,28 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 3MB
+      max-request-size: 3MB
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 server:
   port: 8080
 
 app:
+  public-url: ${APP_PUBLIC_URL:http://localhost:5173}
+  upload-dir: ${APP_UPLOAD_DIR:uploads}
   security:
     jwt-secret: ${JWT_SECRET:change-this-secret-key-change-this-secret-key}
     jwt-expiration-ms: 86400000

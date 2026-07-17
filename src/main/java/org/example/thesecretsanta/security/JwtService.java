@@ -31,13 +31,13 @@ public class JwtService {
                 .compact();
     }
 
-    public String extractEmail(String token) {
+    public String extractLogin(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        String email = extractEmail(token);
-        return email.equals(userDetails.getUsername()) && !isExpired(token);
+        String login = extractLogin(token);
+        return login.equals(userDetails.getUsername()) && !isExpired(token);
     }
 
     private boolean isExpired(String token) {

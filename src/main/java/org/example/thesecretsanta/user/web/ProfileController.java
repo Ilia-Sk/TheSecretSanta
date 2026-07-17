@@ -8,10 +8,13 @@ import org.example.thesecretsanta.user.service.UserService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/profile")
@@ -33,5 +36,13 @@ public class ProfileController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         return userService.updateProfile(request, userDetails);
+    }
+
+    @PostMapping("/avatar")
+    public ProfileResponse uploadAvatar(
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return userService.uploadAvatar(file, userDetails);
     }
 }

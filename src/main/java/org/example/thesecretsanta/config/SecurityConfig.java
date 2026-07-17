@@ -28,7 +28,7 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties({SecurityProperties.class, CorsProperties.class})
+@EnableConfigurationProperties({SecurityProperties.class, CorsProperties.class, AppProperties.class})
 public class SecurityConfig {
 
     @Bean
