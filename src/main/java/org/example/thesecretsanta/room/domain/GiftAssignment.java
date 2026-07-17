@@ -50,6 +50,10 @@ public class GiftAssignment {
         this.receiver = receiver;
     }
 
+    public RoomParticipant getGiver() {
+        return giver;
+    }
+
     public RoomParticipant getReceiver() {
         return receiver;
     }
