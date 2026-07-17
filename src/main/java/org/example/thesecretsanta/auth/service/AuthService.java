@@ -57,15 +57,16 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         String email = request.email().trim().toLowerCase();
-        String login = normalizeLogin(request.login());
+        String displayName = request.displayName().trim();
+        String login = normalizeLogin(displayName);
         if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("Email is already registered");
         }
-        if (userRepository.existsByUsername(login)) {
-            throw new IllegalArgumentException("Login is already taken");
+        if (userRepository.existsByUsername(login) || userRepository.existsByDisplayNameIgnoreCase(displayName)) {
+            throw new IllegalArgumentException("Name is already taken");
         }
 
-        User user = new User(email, login, passwordEncoder.encode(request.password()), request.displayName().trim());
+        User user = new User(email, login, passwordEncoder.encode(request.password()), displayName);
         User savedUser = userRepository.save(user);
         String token = jwtService.generateToken(savedUser, savedUser.getId(), savedUser.getDisplayName());
         return new AuthResponse(token, savedUser.getId(), savedUser.getEmail(), savedUser.getLogin(), savedUser.getDisplayName(), savedUser.getAvatarUrl());
@@ -75,6 +76,7 @@ public class AuthService {
         String login = normalizeLogin(request.login());
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(login, request.password()));
         User user = userRepository.findByUsername(login)
+                .or(() -> userRepository.findFirstByDisplayNameIgnoreCase(request.login().trim()))
                 .orElseThrow(() -> new IllegalArgumentException("Invalid login or password"));
         String token = jwtService.generateToken(user, user.getId(), user.getDisplayName());
         return new AuthResponse(token, user.getId(), user.getEmail(), user.getLogin(), user.getDisplayName(), user.getAvatarUrl());
@@ -110,9 +112,9 @@ public class AuthService {
     }
 
     private String normalizeLogin(String login) {
-        String normalized = login.trim().toLowerCase();
-        if (!normalized.matches("^[a-z0-9._-]{3,60}$")) {
-            throw new IllegalArgumentException("Login can contain latin letters, digits, dots, dashes and underscores");
+        String normalized = login.trim().toLowerCase().replaceAll("\\s+", " ");
+        if (!normalized.matches("^[\\p{L}\\p{N} ._-]{3,60}$")) {
+            throw new IllegalArgumentException("Name must be 3-60 characters and can contain letters, digits, spaces, dots, dashes and underscores");
         }
         return normalized;
     }

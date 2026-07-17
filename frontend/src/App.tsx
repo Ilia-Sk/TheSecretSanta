@@ -293,17 +293,17 @@ function AuthScreen({ onAuth, onError, error }: {
     onError(null);
     const form = new FormData(event.currentTarget);
     const path = mode === 'login' ? '/auth/login' : '/auth/register';
+    const displayName = String(form.get('displayName') ?? '');
     const payload = {
-      login: String(form.get('login')),
       email: String(form.get('email')),
       password: String(form.get('password')),
-      displayName: String(form.get('displayName') ?? '')
+      displayName
     };
 
     try {
       const auth = await request<AuthResponse>(path, {
         method: 'POST',
-        body: JSON.stringify(mode === 'login' ? { login: payload.login, password: payload.password } : payload)
+        body: JSON.stringify(mode === 'login' ? { login: displayName, password: payload.password } : payload)
       });
       onAuth(auth);
     } catch (err) {
@@ -375,9 +375,8 @@ function AuthScreen({ onAuth, onError, error }: {
             </form>
           ) : (
             <form onSubmit={submit} className="form-grid">
-              {mode === 'register' && <input name="displayName" placeholder="Имя" required />}
+              <input name="displayName" placeholder="Имя" minLength={3} required />
               {mode === 'register' && <input name="email" type="email" placeholder="Email для уведомлений" required />}
-              <input name="login" placeholder="Логин" minLength={3} required />
               <input name="password" type="password" placeholder="Пароль" minLength={6} required />
               <button className="submit-button">{mode === 'login' ? 'Войти' : 'Создать аккаунт'}</button>
               {mode === 'login' && <button className="text-button" type="button" onClick={() => setMode('forgot')}>Забыли пароль?</button>}
@@ -550,7 +549,6 @@ function ProfileView({ token, profile, onSaved }: {
       <div className="profile-preview">
         <Avatar name={profile.displayName} avatarUrl={profile.avatarUrl} large />
         <h2>{profile.displayName}</h2>
-        <p>@{profile.login}</p>
         <p>{profile.email}</p>
       </div>
       <form className="profile-form" onSubmit={submit}>
