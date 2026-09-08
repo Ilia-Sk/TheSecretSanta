@@ -13,6 +13,7 @@ import org.example.thesecretsanta.mail.MailService;
 import org.example.thesecretsanta.security.JwtService;
 import org.example.thesecretsanta.user.dao.UserRepository;
 import org.example.thesecretsanta.user.domain.User;
+import org.example.thesecretsanta.user.service.UserNameService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -35,6 +36,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final MailService mailService;
     private final AppProperties appProperties;
+    private final UserNameService userNameService;
 
     public AuthService(
             UserRepository userRepository,
@@ -43,7 +45,8 @@ public class AuthService {
             AuthenticationManager authenticationManager,
             JwtService jwtService,
             MailService mailService,
-            AppProperties appProperties
+            AppProperties appProperties,
+            UserNameService userNameService
     ) {
         this.userRepository = userRepository;
         this.resetTokenRepository = resetTokenRepository;
@@ -52,13 +55,14 @@ public class AuthService {
         this.jwtService = jwtService;
         this.mailService = mailService;
         this.appProperties = appProperties;
+        this.userNameService = userNameService;
     }
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         String email = request.email().trim().toLowerCase();
         String displayName = request.displayName().trim();
-        String login = normalizeLogin(displayName);
+        String login = userNameService.normalize(displayName);
         if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("Email is already registered");
         }
@@ -73,7 +77,7 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        String login = normalizeLogin(request.login());
+        String login = userNameService.normalize(request.login());
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(login, request.password()));
         User user = userRepository.findByUsername(login)
                 .or(() -> userRepository.findFirstByDisplayNameIgnoreCase(request.login().trim()))
@@ -109,14 +113,6 @@ public class AuthService {
         token.getUser().updatePassword(passwordEncoder.encode(request.password()));
         token.markUsed();
         return new MessageResponse("Password has been changed");
-    }
-
-    private String normalizeLogin(String login) {
-        String normalized = login.trim().toLowerCase().replaceAll("\\s+", " ");
-        if (!normalized.matches("^[\\p{L}\\p{N} ._-]{3,60}$")) {
-            throw new IllegalArgumentException("Name must be 3-60 characters and can contain letters, digits, spaces, dots, dashes and underscores");
-        }
-        return normalized;
     }
 
     private String randomToken() {

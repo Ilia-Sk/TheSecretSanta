@@ -53,6 +53,7 @@ export type Profile = {
   login: string;
   displayName: string;
   avatarUrl: string | null;
+  token: string | null;
 };
 
 export type InvitePreview = {

@@ -75,7 +75,8 @@ public class User implements UserDetails {
         return avatarUrl;
     }
 
-    public void updateProfile(String displayName, String avatarUrl) {
+    public void updateProfile(String username, String displayName, String avatarUrl) {
+        this.username = username;
         this.displayName = displayName;
         this.avatarUrl = avatarUrl;
     }

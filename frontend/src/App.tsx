@@ -118,6 +118,8 @@ export function App() {
     if (!auth) return;
     const nextAuth = {
       ...auth,
+      token: nextProfile.token ?? auth.token,
+      login: nextProfile.login,
       displayName: nextProfile.displayName,
       avatarUrl: nextProfile.avatarUrl
     };
@@ -152,7 +154,8 @@ export function App() {
     email: auth.email,
     login: auth.login,
     displayName: auth.displayName,
-    avatarUrl: auth.avatarUrl
+    avatarUrl: auth.avatarUrl,
+    token: null
   };
 
   return (

@@ -5,6 +5,7 @@ public record ProfileResponse(
         String email,
         String login,
         String displayName,
-        String avatarUrl
+        String avatarUrl,
+        String token
 ) {
 }

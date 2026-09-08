@@ -1,24 +1,89 @@
 # The Secret Santa
 
-Full-stack Secret Santa MVP: Spring Boot REST API, JWT auth, MySQL, Docker Compose and React frontend.
+Full-stack Secret Santa application: Spring Boot REST API, JWT auth, MySQL, React frontend and optional Docker production deployment.
+
+The project is currently intended to run locally. There is no always-on VPS/server required for development.
 
 ## Stack
 
-- Java 21, Spring Boot, Spring MVC, Spring Security, Spring Data JPA/Hibernate
+- Java 21, Spring Boot 3, Spring MVC, Spring Security
+- Spring Data JPA / Hibernate
 - AOP audit logging for service actions
-- MySQL 8.4 via Docker Compose
-- React + Vite + TypeScript
+- MySQL 8.4 for local development through Docker Compose
+- H2 for automated tests
+- React, Vite, TypeScript
+- Optional production stack: Docker, Nginx frontend, Caddy HTTPS reverse proxy
 
-## Run MySQL With Docker
+## Main Features
 
-Docker is used here only to start MySQL without installing MySQL manually.
+- Registration with name, email and password
+- Login with name and password
+- JWT-based stateless authentication
+- Room creation with owner as a participant
+- Invite links for participants
+- Wishlists and gift links
+- Directed draw restrictions
+- Secret draw: every participant sees only their own receiver
+- Profile avatar upload
+- Email notifications after draw
+- Password reset by email
 
-1. Install Docker Desktop.
-2. Start Docker Desktop.
-3. In the project root run:
+## Local Run
+
+Start MySQL:
 
 ```bash
 docker compose up -d
+```
+
+Run backend from IntelliJ IDEA or with Maven:
+
+```bash
+./mvnw spring-boot:run
+```
+
+On Windows PowerShell:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
+Backend URL:
+
+```text
+http://localhost:8080
+```
+
+Run frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend URL:
+
+```text
+http://localhost:5173
+```
+
+## Local Database
+
+The default local database settings are in `src/main/resources/application.yml`.
+
+Docker exposes MySQL on:
+
+```text
+localhost:23307
+```
+
+Default local credentials:
+
+```text
+database: secret_santa
+user: santa
+password: santa_password
 ```
 
 Useful commands:
@@ -29,84 +94,64 @@ docker compose logs mysql
 docker compose down
 ```
 
-`docker compose down` stops the database container. Data remains in the named volume. To delete the data too:
+To delete local database data too:
 
 ```bash
 docker compose down -v
 ```
 
-## Run Backend
+## Tests
+
+Backend tests use the `test` Spring profile and an in-memory H2 database.
 
 ```bash
-mvn spring-boot:run
+./mvnw test
 ```
 
-Backend starts on `http://localhost:8080`. MySQL from Docker is exposed on `localhost:23307`.
+On Windows PowerShell:
 
-## Run Frontend
+```powershell
+.\mvnw.cmd test
+```
+
+Frontend production build:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+npm run build
 ```
 
-Frontend starts on `http://localhost:5173`.
+## Email Setup
 
-## Production Deployment
+Email is optional locally. If SMTP settings are empty, the application starts and logs skipped email sends.
 
-For a real public website you need a VPS and a domain, for example `your-domain.by`, `.com`, `.app`, `.dev` or another domain you own.
-
-1. Buy or create a VPS with Ubuntu.
-2. Point the domain DNS `A` record to the VPS public IP.
-3. Install Docker and Docker Compose on the VPS.
-4. Copy this project to the VPS.
-5. Create production environment file:
-
-```bash
-cp .env.production.example .env.production
-```
-
-6. Edit `.env.production` and replace:
+For Gmail, create an app password and set these environment variables:
 
 ```env
-SITE_DOMAIN=your-domain.by
-MYSQL_PASSWORD=...
-MYSQL_ROOT_PASSWORD=...
-JWT_SECRET=...
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=your-gmail@gmail.com
+MAIL_PASSWORD=your-google-app-password
 ```
 
-7. Start the public stack:
+Do not use your normal Gmail account password.
+
+## Optional Production Deployment
+
+Production files are kept in the repository as a deployment example:
+
+- `Dockerfile`
+- `frontend/Dockerfile`
+- `docker-compose.prod.yml`
+- `Caddyfile`
+- `.env.production.example`
+
+To deploy publicly again, you need a VPS, a domain, DNS `A` records pointing to the VPS IP, Docker and Docker Compose.
+
+Production start command:
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
 
-8. Check containers:
-
-```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml ps
-```
-
-The production stack contains:
-
-- `mysql` - database, available only inside Docker network.
-- `backend` - Spring Boot API.
-- `frontend` - React static build served by Nginx.
-- `caddy` - public HTTP/HTTPS entry point with automatic TLS certificates.
-
-After DNS is configured, the site opens at:
-
-```text
-https://your-domain.by
-```
-
-## MVP Flow
-
-1. Register or log in.
-2. Create a room.
-3. Share the invite link.
-4. Participants join after logging in.
-5. Room owner adds directed restrictions.
-6. Room owner starts the draw.
-7. Every participant sees only their own gift receiver and that receiver's wishlist.
+If there is no active VPS, this section is only documentation and does not affect local development.

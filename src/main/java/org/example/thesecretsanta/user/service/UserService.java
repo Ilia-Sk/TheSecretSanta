@@ -1,6 +1,7 @@
 package org.example.thesecretsanta.user.service;
 
 import org.example.thesecretsanta.config.AppProperties;
+import org.example.thesecretsanta.security.JwtService;
 import org.example.thesecretsanta.user.dao.UserRepository;
 import org.example.thesecretsanta.user.domain.User;
 import org.example.thesecretsanta.user.dto.ProfileResponse;
@@ -24,10 +25,14 @@ public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final AppProperties appProperties;
+    private final UserNameService userNameService;
+    private final JwtService jwtService;
 
-    public UserService(UserRepository userRepository, AppProperties appProperties) {
+    public UserService(UserRepository userRepository, AppProperties appProperties, UserNameService userNameService, JwtService jwtService) {
         this.userRepository = userRepository;
         this.appProperties = appProperties;
+        this.userNameService = userNameService;
+        this.jwtService = jwtService;
     }
 
     @Override
@@ -52,8 +57,14 @@ public class UserService implements UserDetailsService {
     @Transactional
     public ProfileResponse updateProfile(UpdateProfileRequest request, UserDetails userDetails) {
         User user = getCurrentUser(userDetails);
-        user.updateProfile(request.displayName().trim(), trimToNull(request.avatarUrl()));
-        return mapProfile(user);
+        String displayName = request.displayName().trim();
+        String username = userNameService.normalize(displayName);
+        if (userRepository.existsByUsernameAndIdNot(username, user.getId())
+                || userRepository.existsByDisplayNameIgnoreCaseAndIdNot(displayName, user.getId())) {
+            throw new IllegalArgumentException("Name is already taken");
+        }
+        user.updateProfile(username, displayName, trimToNull(request.avatarUrl()));
+        return mapProfile(user, jwtService.generateToken(user, user.getId(), user.getDisplayName()));
     }
 
     @Transactional
@@ -83,7 +94,11 @@ public class UserService implements UserDetailsService {
     }
 
     private ProfileResponse mapProfile(User user) {
-        return new ProfileResponse(user.getId(), user.getEmail(), user.getLogin(), user.getDisplayName(), user.getAvatarUrl());
+        return mapProfile(user, null);
+    }
+
+    private ProfileResponse mapProfile(User user, String token) {
+        return new ProfileResponse(user.getId(), user.getEmail(), user.getLogin(), user.getDisplayName(), user.getAvatarUrl(), token);
     }
 
     private String extensionFor(String contentType) {
