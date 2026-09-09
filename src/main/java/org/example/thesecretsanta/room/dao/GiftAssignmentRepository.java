@@ -9,4 +9,6 @@ import java.util.Optional;
 
 public interface GiftAssignmentRepository extends JpaRepository<GiftAssignment, Long> {
     Optional<GiftAssignment> findByRoomAndGiver(Room room, RoomParticipant giver);
+
+    void deleteByRoom(Room room);
 }

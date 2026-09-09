@@ -2,6 +2,8 @@ package org.example.thesecretsanta.room.service;
 
 import org.example.thesecretsanta.auth.dto.RegisterRequest;
 import org.example.thesecretsanta.auth.service.AuthService;
+import org.example.thesecretsanta.room.dao.RoomRepository;
+import org.example.thesecretsanta.room.domain.Room;
 import org.example.thesecretsanta.room.domain.RoomStatus;
 import org.example.thesecretsanta.room.dto.AddRestrictionRequest;
 import org.example.thesecretsanta.room.dto.CreateRoomRequest;
@@ -9,6 +11,8 @@ import org.example.thesecretsanta.room.dto.JoinRoomRequest;
 import org.example.thesecretsanta.room.dto.MyAssignmentResponse;
 import org.example.thesecretsanta.room.dto.ParticipantResponse;
 import org.example.thesecretsanta.room.dto.RoomResponse;
+import org.example.thesecretsanta.room.dto.UpdateRoomRequest;
+import org.example.thesecretsanta.room.dto.UpdateWishlistRequest;
 import org.example.thesecretsanta.user.dao.UserRepository;
 import org.example.thesecretsanta.user.domain.User;
 import org.junit.jupiter.api.Test;
@@ -40,6 +44,9 @@ class RoomServiceIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private RoomRepository roomRepository;
+
     @Test
     void ownerCreatesRoomAndParticipantsJoinByInviteCode() {
         User owner = register("owner-room@example.com", "Хозяин");
@@ -62,6 +69,180 @@ class RoomServiceIntegrationTest {
         assertThat(joined.name()).isEqualTo("День Рождения Валеры");
         assertThat(joined.participants()).hasSize(2);
         assertThat(joined.owner()).isFalse();
+    }
+
+    @Test
+    void createRoomRejectsPastCelebrationDate() {
+        User owner = register("owner-past-create@example.com", "Past Create Owner");
+
+        assertThatThrownBy(() -> roomService.createRoom(new CreateRoomRequest(
+                "Past Room",
+                null,
+                LocalDate.now().minusDays(1),
+                null,
+                null,
+                null
+        ), owner))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Celebration date cannot be in the past");
+    }
+
+    @Test
+    void updateRoomRejectsPastCelebrationDate() {
+        User owner = register("owner-past-update@example.com", "Past Update Owner");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest("Current Room", null, null, null, null, null), owner);
+
+        assertThatThrownBy(() -> roomService.updateRoom(room.id(), new UpdateRoomRequest(
+                "Current Room",
+                null,
+                LocalDate.now().minusDays(1),
+                null
+        ), owner))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Celebration date cannot be in the past");
+    }
+
+    @Test
+    void ownerCanDeleteRoomButParticipantCannot() {
+        User owner = register("owner-delete@example.com", "Delete Owner");
+        User guest = register("guest-delete@example.com", "Delete Guest");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest("Delete Room", null, null, null, null, null), owner);
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest(null, null), guest);
+
+        assertThatThrownBy(() -> roomService.deleteRoom(room.id(), guest))
+                .isInstanceOf(AccessDeniedException.class);
+
+        roomService.deleteRoom(room.id(), owner);
+
+        assertThat(roomRepository.findById(room.id())).isEmpty();
+    }
+
+    @Test
+    void ownerCanDeleteDrawnRoomWithAssignmentsAndRestrictions() {
+        User owner = register("owner-delete-drawn@example.com", "Delete Drawn Owner");
+        User first = register("first-delete-drawn@example.com", "Delete Drawn First");
+        User second = register("second-delete-drawn@example.com", "Delete Drawn Second");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest("Delete Drawn Room", null, null, null, null, null), owner);
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest(null, null), first);
+        RoomResponse withParticipants = roomService.joinRoom(room.inviteCode(), new JoinRoomRequest(null, null), second);
+        Map<String, ParticipantResponse> participantsByName = withParticipants.participants().stream()
+                .collect(Collectors.toMap(ParticipantResponse::displayName, Function.identity()));
+        roomService.addRestriction(room.id(), new AddRestrictionRequest(
+                participantsByName.get("Delete Drawn First").participantId(),
+                participantsByName.get("Delete Drawn Second").participantId()
+        ), owner);
+        roomService.draw(room.id(), owner);
+
+        roomService.deleteRoom(room.id(), owner);
+
+        assertThat(roomRepository.findById(room.id())).isEmpty();
+    }
+
+    @Test
+    void scheduledCleanupDeletesOnlyRoomsWithPastCelebrationDate() {
+        User owner = register("owner-cleanup@example.com", "Cleanup Owner");
+        Room expired = roomRepository.save(new Room(
+                "Expired Room",
+                null,
+                LocalDate.now().minusDays(1),
+                null,
+                owner
+        ));
+        Room today = roomRepository.save(new Room(
+                "Today Room",
+                null,
+                LocalDate.now(),
+                null,
+                owner
+        ));
+        Room future = roomRepository.save(new Room(
+                "Future Room",
+                null,
+                LocalDate.now().plusDays(1),
+                null,
+                owner
+        ));
+
+        roomService.deleteExpiredRooms();
+
+        assertThat(roomRepository.findById(expired.getId())).isEmpty();
+        assertThat(roomRepository.findById(today.getId())).isPresent();
+        assertThat(roomRepository.findById(future.getId())).isPresent();
+    }
+
+    @Test
+    void repeatedJoinDoesNotDuplicateParticipantOrOverwriteWishlist() {
+        User owner = register("owner-repeat@example.com", "Repeat Owner");
+        User guest = register("guest-repeat@example.com", "Repeat Guest");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest("Repeat Room", null, null, null, null, null), owner);
+
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest("Initial wishlist", null), guest);
+        RoomResponse repeatedJoin = roomService.joinRoom(room.inviteCode(), new JoinRoomRequest("Changed wishlist", null), guest);
+
+        assertThat(repeatedJoin.participants()).hasSize(2);
+        RoomResponse guestView = roomService.getRoom(room.id(), guest);
+        ParticipantResponse guestParticipant = guestView.participants().stream()
+                .filter(participant -> participant.userId().equals(guest.getId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(guestParticipant.wishlist()).isEqualTo("Initial wishlist");
+    }
+
+    @Test
+    void participantsCanSeeOnlyTheirOwnWishlistBeforeDraw() {
+        User owner = register("owner-privacy@example.com", "Privacy Owner");
+        User guest = register("guest-privacy@example.com", "Privacy Guest");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest(
+                "Privacy Room",
+                null,
+                null,
+                null,
+                "Owner private wishlist",
+                null
+        ), owner);
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest("Guest private wishlist", null), guest);
+
+        RoomResponse guestView = roomService.getRoom(room.id(), guest);
+
+        Map<Long, ParticipantResponse> participantsByUserId = guestView.participants().stream()
+                .collect(Collectors.toMap(ParticipantResponse::userId, Function.identity()));
+        assertThat(participantsByUserId.get(owner.getId()).wishlist()).isNull();
+        assertThat(participantsByUserId.get(guest.getId()).wishlist()).isEqualTo("Guest private wishlist");
+    }
+
+    @Test
+    void participantCanUpdateOwnWishlistBeforeDraw() {
+        User owner = register("owner-wishlist-update@example.com", "Wishlist Owner");
+        User guest = register("guest-wishlist-update@example.com", "Wishlist Guest");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest("Wishlist Room", null, null, null, null, null), owner);
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest("Old wishlist", "https://example.com/old"), guest);
+
+        RoomResponse updated = roomService.updateMyWishlist(room.id(), new UpdateWishlistRequest(
+                "New wishlist",
+                "https://example.com/new"
+        ), guest);
+
+        ParticipantResponse guestParticipant = updated.participants().stream()
+                .filter(participant -> participant.userId().equals(guest.getId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(guestParticipant.wishlist()).isEqualTo("New wishlist");
+        assertThat(guestParticipant.wishlistLinks()).isEqualTo("https://example.com/new");
+    }
+
+    @Test
+    void participantCannotUpdateWishlistAfterDraw() {
+        User owner = register("owner-wishlist-drawn@example.com", "Wishlist Drawn Owner");
+        User first = register("first-wishlist-drawn@example.com", "Wishlist Drawn First");
+        User second = register("second-wishlist-drawn@example.com", "Wishlist Drawn Second");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest("Wishlist Drawn Room", null, null, null, null, null), owner);
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest("First wishlist", null), first);
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest("Second wishlist", null), second);
+        roomService.draw(room.id(), owner);
+
+        assertThatThrownBy(() -> roomService.updateMyWishlist(room.id(), new UpdateWishlistRequest("Changed", null), first))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Room is already drawn or closed");
     }
 
     @Test
@@ -124,6 +305,44 @@ class RoomServiceIntegrationTest {
 
         assertThatThrownBy(() -> roomService.draw(room.id(), guest))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void drawFailsWithoutChangingRoomWhenRestrictionsMakeAssignmentImpossible() {
+        User owner = register("owner-impossible@example.com", "Impossible Owner");
+        User first = register("first-impossible@example.com", "Impossible First");
+        User second = register("second-impossible@example.com", "Impossible Second");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest("Impossible Room", null, null, null, null, null), owner);
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest(null, null), first);
+        RoomResponse withParticipants = roomService.joinRoom(room.inviteCode(), new JoinRoomRequest(null, null), second);
+        Map<String, ParticipantResponse> participantsByName = withParticipants.participants().stream()
+                .collect(Collectors.toMap(ParticipantResponse::displayName, Function.identity()));
+
+        roomService.addRestriction(room.id(), new AddRestrictionRequest(
+                participantsByName.get("Impossible Owner").participantId(),
+                participantsByName.get("Impossible First").participantId()
+        ), owner);
+        roomService.addRestriction(room.id(), new AddRestrictionRequest(
+                participantsByName.get("Impossible Owner").participantId(),
+                participantsByName.get("Impossible Second").participantId()
+        ), owner);
+
+        assertThatThrownBy(() -> roomService.draw(room.id(), owner))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Cannot build a valid draw with the current restrictions");
+        assertThat(roomService.getRoom(room.id(), owner).status()).isEqualTo(RoomStatus.OPEN);
+    }
+
+    @Test
+    void drawRequiresAtLeastThreeParticipants() {
+        User owner = register("owner-small@example.com", "Small Owner");
+        User guest = register("guest-small@example.com", "Small Guest");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest("Small Room", null, null, null, null, null), owner);
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest(null, null), guest);
+
+        assertThatThrownBy(() -> roomService.draw(room.id(), owner))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("At least 3 participants are required for a Secret Santa draw");
     }
 
     @Test

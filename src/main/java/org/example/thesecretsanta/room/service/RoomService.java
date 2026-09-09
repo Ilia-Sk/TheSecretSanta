@@ -2,7 +2,7 @@ package org.example.thesecretsanta.room.service;
 
 import jakarta.persistence.EntityNotFoundException;
 import org.example.thesecretsanta.config.AppProperties;
-import org.example.thesecretsanta.mail.MailService;
+import org.example.thesecretsanta.mail.MailClient;
 import org.example.thesecretsanta.room.dao.DrawRestrictionRepository;
 import org.example.thesecretsanta.room.dao.GiftAssignmentRepository;
 import org.example.thesecretsanta.room.dao.RoomParticipantRepository;
@@ -21,11 +21,15 @@ import org.example.thesecretsanta.room.dto.ParticipantResponse;
 import org.example.thesecretsanta.room.dto.RestrictionResponse;
 import org.example.thesecretsanta.room.dto.RoomResponse;
 import org.example.thesecretsanta.room.dto.UpdateRoomRequest;
+import org.example.thesecretsanta.room.dto.UpdateWishlistRequest;
 import org.example.thesecretsanta.user.domain.User;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -37,11 +41,13 @@ import java.util.stream.Collectors;
 
 @Service
 public class RoomService {
+    private static final SecureRandom DRAW_RANDOM = new SecureRandom();
+
     private final RoomRepository roomRepository;
     private final RoomParticipantRepository participantRepository;
     private final DrawRestrictionRepository restrictionRepository;
     private final GiftAssignmentRepository assignmentRepository;
-    private final MailService mailService;
+    private final MailClient mailClient;
     private final AppProperties appProperties;
 
     public RoomService(
@@ -49,19 +55,20 @@ public class RoomService {
             RoomParticipantRepository participantRepository,
             DrawRestrictionRepository restrictionRepository,
             GiftAssignmentRepository assignmentRepository,
-            MailService mailService,
+            MailClient mailClient,
             AppProperties appProperties
     ) {
         this.roomRepository = roomRepository;
         this.participantRepository = participantRepository;
         this.restrictionRepository = restrictionRepository;
         this.assignmentRepository = assignmentRepository;
-        this.mailService = mailService;
+        this.mailClient = mailClient;
         this.appProperties = appProperties;
     }
 
     @Transactional
     public RoomResponse createRoom(CreateRoomRequest request, User currentUser) {
+        validateCelebrationDate(request.celebrationDate());
         Room room = new Room(
                 request.name().trim(),
                 trimToNull(request.description()),
@@ -108,6 +115,15 @@ public class RoomService {
     }
 
     @Transactional
+    public RoomResponse updateMyWishlist(Long roomId, UpdateWishlistRequest request, User currentUser) {
+        Room room = findRoom(roomId);
+        ensureOpen(room);
+        RoomParticipant participant = requireParticipant(room, currentUser);
+        participant.updateWishlist(trimToNull(request.wishlist()), trimToNull(request.wishlistLinks()));
+        return getRoom(roomId, currentUser);
+    }
+
+    @Transactional
     public RoomResponse addRestriction(Long roomId, AddRestrictionRequest request, User currentUser) {
         Room room = findRoom(roomId);
         requireOwner(room, currentUser);
@@ -129,6 +145,7 @@ public class RoomService {
         Room room = findRoom(roomId);
         requireOwner(room, currentUser);
         ensureOpen(room);
+        validateCelebrationDate(request.celebrationDate());
         room.updateDetails(
                 request.name().trim(),
                 trimToNull(request.description()),
@@ -136,6 +153,13 @@ public class RoomService {
                 request.giftBudget()
         );
         return getRoom(roomId, currentUser);
+    }
+
+    @Transactional
+    public void deleteRoom(Long roomId, User currentUser) {
+        Room room = findRoom(roomId);
+        requireOwner(room, currentUser);
+        deleteRoomGraph(room);
     }
 
     @Transactional
@@ -196,29 +220,69 @@ public class RoomService {
         );
     }
 
-    private Optional<List<GiftAssignment>> buildAssignments(Room room, List<RoomParticipant> participants, Map<Long, Set<Long>> forbidden) {
-        for (int attempt = 0; attempt < 300; attempt++) {
-            List<RoomParticipant> receivers = new ArrayList<>(participants);
-            Collections.shuffle(receivers);
-            Set<Long> usedReceivers = new HashSet<>();
-            List<GiftAssignment> assignments = new ArrayList<>();
-            boolean valid = true;
+    @Scheduled(cron = "0 5 0 * * *")
+    @Transactional
+    public void deleteExpiredRooms() {
+        roomRepository.findByCelebrationDateBefore(LocalDate.now())
+                .forEach(this::deleteRoomGraph);
+    }
 
-            for (int i = 0; i < participants.size(); i++) {
-                RoomParticipant giver = participants.get(i);
-                RoomParticipant receiver = receivers.get(i);
-                Set<Long> forbiddenForGiver = forbidden.getOrDefault(giver.getId(), Set.of());
-                if (giver.getId().equals(receiver.getId()) || forbiddenForGiver.contains(receiver.getId()) || !usedReceivers.add(receiver.getId())) {
-                    valid = false;
-                    break;
-                }
-                assignments.add(new GiftAssignment(room, giver, receiver));
-            }
-            if (valid) {
-                return Optional.of(assignments);
-            }
+    private void deleteRoomGraph(Room room) {
+        assignmentRepository.deleteByRoom(room);
+        restrictionRepository.deleteByRoom(room);
+        participantRepository.deleteByRoom(room);
+        roomRepository.delete(room);
+    }
+
+    private void validateCelebrationDate(LocalDate celebrationDate) {
+        if (celebrationDate != null && celebrationDate.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("Celebration date cannot be in the past");
+        }
+    }
+
+    private Optional<List<GiftAssignment>> buildAssignments(Room room, List<RoomParticipant> participants, Map<Long, Set<Long>> forbidden) {
+        List<GiftAssignment> assignments = new ArrayList<>();
+        Set<Long> usedReceivers = new HashSet<>();
+        if (assignReceiver(room, participants, participants, forbidden, assignments, usedReceivers, 0)) {
+            return Optional.of(assignments);
         }
         return Optional.empty();
+    }
+
+    private boolean assignReceiver(
+            Room room,
+            List<RoomParticipant> givers,
+            List<RoomParticipant> receivers,
+            Map<Long, Set<Long>> forbidden,
+            List<GiftAssignment> assignments,
+            Set<Long> usedReceivers,
+            int giverIndex
+    ) {
+        if (giverIndex == givers.size()) {
+            return true;
+        }
+
+        RoomParticipant giver = givers.get(giverIndex);
+        Set<Long> forbiddenForGiver = forbidden.getOrDefault(giver.getId(), Set.of());
+        List<RoomParticipant> candidateReceivers = new ArrayList<>(receivers);
+        Collections.shuffle(candidateReceivers, DRAW_RANDOM);
+
+        for (RoomParticipant receiver : candidateReceivers) {
+            if (giver.getId().equals(receiver.getId())
+                    || forbiddenForGiver.contains(receiver.getId())
+                    || usedReceivers.contains(receiver.getId())) {
+                continue;
+            }
+
+            assignments.add(new GiftAssignment(room, giver, receiver));
+            usedReceivers.add(receiver.getId());
+            if (assignReceiver(room, givers, receivers, forbidden, assignments, usedReceivers, giverIndex + 1)) {
+                return true;
+            }
+            usedReceivers.remove(receiver.getId());
+            assignments.remove(assignments.size() - 1);
+        }
+        return false;
     }
 
     private RoomResponse mapRoom(Room room, User currentUser) {
@@ -314,7 +378,7 @@ public class RoomService {
                     receiver.getWishlist() == null ? "Пожелания не указаны." : receiver.getWishlist(),
                     appProperties.publicUrl()
             );
-            mailService.send(giver.getUser().getEmail(), "The Secret Santa: жеребьевка проведена", text);
+            mailClient.send(giver.getUser().getEmail(), "The Secret Santa: жеребьевка проведена", text);
         }
     }
 }

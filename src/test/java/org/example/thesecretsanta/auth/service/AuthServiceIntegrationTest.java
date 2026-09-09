@@ -1,8 +1,12 @@
 package org.example.thesecretsanta.auth.service;
 
+import org.example.thesecretsanta.auth.dao.PasswordResetTokenRepository;
 import org.example.thesecretsanta.auth.dto.AuthResponse;
+import org.example.thesecretsanta.auth.dto.ForgotPasswordRequest;
 import org.example.thesecretsanta.auth.dto.LoginRequest;
 import org.example.thesecretsanta.auth.dto.RegisterRequest;
+import org.example.thesecretsanta.auth.dto.ResetPasswordRequest;
+import org.example.thesecretsanta.auth.domain.PasswordResetToken;
 import org.example.thesecretsanta.user.dao.UserRepository;
 import org.example.thesecretsanta.user.dto.ProfileResponse;
 import org.example.thesecretsanta.user.dto.UpdateProfileRequest;
@@ -28,6 +32,9 @@ class AuthServiceIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PasswordResetTokenRepository resetTokenRepository;
 
     @Test
     void registerCreatesUserAndAllowsLoginByDisplayName() {
@@ -77,5 +84,44 @@ class AuthServiceIntegrationTest {
         assertThat(updated.login()).isEqualTo("новое имя");
         assertThat(updated.token()).isNotBlank();
         assertThat(loggedIn.userId()).isEqualTo(registered.userId());
+    }
+
+    @Test
+    void passwordResetChangesPasswordAndConsumesResetToken() {
+        authService.register(new RegisterRequest("reset@example.com", "oldSecret123", "Reset User"));
+        authService.forgotPassword(new ForgotPasswordRequest("reset@example.com"));
+        PasswordResetToken resetToken = resetTokenRepository.findAll().stream()
+                .filter(token -> token.getUser().getEmail().equals("reset@example.com"))
+                .findFirst()
+                .orElseThrow();
+
+        authService.resetPassword(new ResetPasswordRequest(resetToken.getToken(), "newSecret123"));
+
+        assertThat(authService.login(new LoginRequest("Reset User", "newSecret123")).email())
+                .isEqualTo("reset@example.com");
+        assertThatThrownBy(() -> authService.login(new LoginRequest("Reset User", "oldSecret123")))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> authService.resetPassword(new ResetPasswordRequest(resetToken.getToken(), "anotherSecret123")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Password reset link is invalid or expired");
+    }
+
+    @Test
+    void forgotPasswordInvalidatesPreviousUnusedResetToken() {
+        authService.register(new RegisterRequest("rotate-reset@example.com", "secret123", "Rotate Reset"));
+
+        authService.forgotPassword(new ForgotPasswordRequest("rotate-reset@example.com"));
+        String firstToken = resetTokenRepository.findAll().stream()
+                .filter(token -> token.getUser().getEmail().equals("rotate-reset@example.com"))
+                .findFirst()
+                .orElseThrow()
+                .getToken();
+
+        authService.forgotPassword(new ForgotPasswordRequest("rotate-reset@example.com"));
+
+        assertThat(resetTokenRepository.findByToken(firstToken)).isEmpty();
+        assertThat(resetTokenRepository.findAll().stream()
+                .filter(token -> token.getUser().getEmail().equals("rotate-reset@example.com")))
+                .hasSize(1);
     }
 }

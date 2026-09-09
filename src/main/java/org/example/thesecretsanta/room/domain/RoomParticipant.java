@@ -75,7 +75,8 @@ public class RoomParticipant {
         return wishlistLinks;
     }
 
-    public void updateWishlist(String wishlist) {
+    public void updateWishlist(String wishlist, String wishlistLinks) {
         this.wishlist = wishlist;
+        this.wishlistLinks = wishlistLinks;
     }
 }

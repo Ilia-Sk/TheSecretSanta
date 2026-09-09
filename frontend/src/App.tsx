@@ -12,6 +12,7 @@ import {
   Shuffle,
   Sparkles,
   Ticket,
+  Trash2,
   UserCircle,
   Users,
   WalletCards
@@ -21,8 +22,7 @@ import { AuthResponse, InvitePreview, MyAssignment, Profile, Room, request, uplo
 type AuthMode = 'login' | 'register' | 'forgot' | 'reset';
 type ViewMode = 'create' | 'room' | 'assignment' | 'profile';
 
-localStorage.removeItem('secret-santa-auth');
-const storedAuth = sessionStorage.getItem('secret-santa-auth');
+const storedAuth = readStoredAuth();
 
 const statusLabels: Record<Room['status'], string> = {
   OPEN: 'Открыта',
@@ -31,7 +31,7 @@ const statusLabels: Record<Room['status'], string> = {
 };
 
 export function App() {
-  const [auth, setAuth] = useState<AuthResponse | null>(storedAuth ? JSON.parse(storedAuth) : null);
+  const [auth, setAuth] = useState<AuthResponse | null>(storedAuth);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
@@ -254,8 +254,15 @@ export function App() {
           <RoomDetails
             room={selectedRoom}
             token={auth.token}
+            currentUserId={auth.userId}
             assignment={assignment}
             onChanged={loadRooms}
+            onDeleted={(roomId) => {
+              setRooms((currentRooms) => currentRooms.filter((room) => room.id !== roomId));
+              setSelectedRoomId((currentRoomId) => currentRoomId === roomId ? null : currentRoomId);
+              setAssignment(null);
+              setView('create');
+            }}
             openAssignment={() => setView('assignment')}
             runAction={runAction}
           />
@@ -440,7 +447,7 @@ function CreateRoom({ token, onCreated }: { token: string; onCreated: (room: Roo
           <div className="form-grid two-columns">
             <label>
               <span>Дата праздника</span>
-              <input name="celebrationDate" type="date" />
+              <input name="celebrationDate" type="date" min={todayDateInputValue()} />
             </label>
             <label>
               <span>Бюджет</span>
@@ -583,11 +590,13 @@ function ProfileView({ token, profile, onSaved }: {
   );
 }
 
-function RoomDetails({ room, token, assignment, onChanged, openAssignment, runAction }: {
+function RoomDetails({ room, token, currentUserId, assignment, onChanged, onDeleted, openAssignment, runAction }: {
   room: Room;
   token: string;
+  currentUserId: number;
   assignment: MyAssignment | null;
   onChanged: () => Promise<void>;
+  onDeleted: (roomId: number) => void;
   openAssignment: () => void;
   runAction: (action: () => Promise<void>) => Promise<void>;
 }) {
@@ -623,6 +632,21 @@ function RoomDetails({ room, token, assignment, onChanged, openAssignment, runAc
     });
   }
 
+  async function updateWishlist(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await runAction(async () => {
+      await request<Room>(`/rooms/${room.id}/wishlist`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          wishlist: String(form.get('wishlist')),
+          wishlistLinks: String(form.get('wishlistLinks'))
+        })
+      }, token);
+      await onChanged();
+    });
+  }
+
   async function deleteRestriction(restrictionId: number) {
     await runAction(async () => {
       await request<Room>(`/rooms/${room.id}/restrictions/${restrictionId}`, {
@@ -632,7 +656,20 @@ function RoomDetails({ room, token, assignment, onChanged, openAssignment, runAc
     });
   }
 
+  async function deleteRoom() {
+    if (!window.confirm(`Удалить комнату "${room.name}"? Это действие нельзя отменить.`)) {
+      return;
+    }
+    await runAction(async () => {
+      await request<void>(`/rooms/${room.id}`, {
+        method: 'DELETE'
+      }, token);
+      onDeleted(room.id);
+    });
+  }
+
   const inviteLink = `${window.location.origin}/join/${room.inviteCode}`;
+  const currentParticipant = room.participants.find((participant) => participant.userId === currentUserId) ?? null;
 
   return (
     <div className="room-grid">
@@ -646,15 +683,23 @@ function RoomDetails({ room, token, assignment, onChanged, openAssignment, runAc
             {room.giftBudget && <span><Gift size={16} /> до {room.giftBudget} ₽</span>}
           </div>
         </div>
-        {room.owner && room.status === 'OPEN' && (
-          <button className="draw-button" onClick={() => runAction(async () => {
-            await request<Room>(`/rooms/${room.id}/draw`, { method: 'POST' }, token);
-            await onChanged();
-            openAssignment();
-          })}>
-            <Shuffle size={18} />
-            Провести жеребьевку
-          </button>
+        {room.owner && (
+          <div className="room-header-actions">
+            {room.status === 'OPEN' && (
+              <button className="draw-button" onClick={() => runAction(async () => {
+                await request<Room>(`/rooms/${room.id}/draw`, { method: 'POST' }, token);
+                await onChanged();
+                openAssignment();
+              })}>
+                <Shuffle size={18} />
+                Провести жеребьевку
+              </button>
+            )}
+            <button className="danger-action" type="button" onClick={deleteRoom}>
+              <Trash2 size={18} />
+              Удалить комнату
+            </button>
+          </div>
         )}
         {room.status === 'DRAWN' && assignment && (
           <button className="draw-button" onClick={openAssignment}>
@@ -692,7 +737,7 @@ function RoomDetails({ room, token, assignment, onChanged, openAssignment, runAc
             <div className="form-grid two-columns">
               <label>
                 <span>Дата праздника</span>
-                <input name="celebrationDate" type="date" defaultValue={room.celebrationDate ?? ''} />
+                <input name="celebrationDate" type="date" min={todayDateInputValue()} defaultValue={room.celebrationDate ?? ''} />
               </label>
               <label>
                 <span>Бюджет</span>
@@ -734,6 +779,26 @@ function RoomDetails({ room, token, assignment, onChanged, openAssignment, runAc
           </button>
         </div>
       </section>
+
+      {room.status === 'OPEN' && currentParticipant && (
+        <section className="panel">
+          <div className="section-title compact">
+            <span><WalletCards size={19} /></span>
+            <h2>Мои пожелания</h2>
+          </div>
+          <form className="room-edit-form" onSubmit={updateWishlist}>
+            <label>
+              <span>Wishlist</span>
+              <textarea name="wishlist" defaultValue={currentParticipant.wishlist ?? ''} placeholder="Что вы хотели бы получить в подарок?" />
+            </label>
+            <label>
+              <span>Ссылки на подарки</span>
+              <textarea name="wishlistLinks" defaultValue={currentParticipant.wishlistLinks ?? ''} placeholder="Одна ссылка на строку" />
+            </label>
+            <button className="submit-button">Сохранить пожелания</button>
+          </form>
+        </section>
+      )}
 
       {room.owner && room.status === 'OPEN' && (
         <section className="panel">
@@ -814,11 +879,44 @@ function WishlistLinks({ value }: { value: string | null }) {
 
   return (
     <div className="wishlist-links">
-      {links.map((link) => (
-        <a href={link} target="_blank" rel="noreferrer" key={link}>{link}</a>
-      ))}
+      {links.map((link) => {
+        const href = safeExternalHref(link);
+        return href
+          ? <a href={href} target="_blank" rel="noreferrer" key={link}>{link}</a>
+          : <span key={link}>{link}</span>;
+      })}
     </div>
   );
+}
+
+function readStoredAuth(): AuthResponse | null {
+  const value = sessionStorage.getItem('secret-santa-auth');
+  if (!value) {
+    return null;
+  }
+  try {
+    return JSON.parse(value) as AuthResponse;
+  } catch {
+    sessionStorage.removeItem('secret-santa-auth');
+    return null;
+  }
+}
+
+function safeExternalHref(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function todayDateInputValue(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function FormSection({ icon, title, text, accent, children }: {

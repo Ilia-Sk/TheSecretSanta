@@ -118,6 +118,7 @@ Frontend production build:
 
 ```bash
 cd frontend
+npm run typecheck
 npm run build
 ```
 
@@ -153,5 +154,7 @@ Production start command:
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
+
+Production uses the `prod` Spring profile. Set a long random `JWT_SECRET` in `.env.production`; the app refuses to start with the local development JWT secret when `prod` is active.
 
 If there is no active VPS, this section is only documentation and does not affect local development.

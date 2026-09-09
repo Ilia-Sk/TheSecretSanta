@@ -10,7 +10,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 @Service
-public class MailService {
+public class MailService implements MailClient {
     private static final Logger log = LoggerFactory.getLogger(MailService.class);
 
     private final JavaMailSender mailSender;
@@ -21,6 +21,7 @@ public class MailService {
         this.mailProperties = mailProperties;
     }
 
+    @Override
     public void send(String to, String subject, String text) {
         if (mailSender == null || mailProperties.getHost() == null || mailProperties.getHost().isBlank()) {
             log.info("Email sending is disabled. Skipped email to {} with subject {}", to, subject);

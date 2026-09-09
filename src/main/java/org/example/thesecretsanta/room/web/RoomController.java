@@ -8,11 +8,13 @@ import org.example.thesecretsanta.room.dto.InvitePreviewResponse;
 import org.example.thesecretsanta.room.dto.MyAssignmentResponse;
 import org.example.thesecretsanta.room.dto.RoomResponse;
 import org.example.thesecretsanta.room.dto.UpdateRoomRequest;
+import org.example.thesecretsanta.room.dto.UpdateWishlistRequest;
 import org.example.thesecretsanta.room.service.RoomService;
 import org.example.thesecretsanta.user.domain.User;
 import org.example.thesecretsanta.user.service.UserService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -64,6 +67,12 @@ public class RoomController {
         return roomService.updateRoom(roomId, request, currentUser(userDetails));
     }
 
+    @DeleteMapping("/{roomId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteRoom(@PathVariable Long roomId, @AuthenticationPrincipal UserDetails userDetails) {
+        roomService.deleteRoom(roomId, currentUser(userDetails));
+    }
+
     @PostMapping("/join/{inviteCode}")
     public RoomResponse joinRoom(
             @PathVariable String inviteCode,
@@ -71,6 +80,15 @@ public class RoomController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         return roomService.joinRoom(inviteCode, request, currentUser(userDetails));
+    }
+
+    @PutMapping("/{roomId}/wishlist")
+    public RoomResponse updateMyWishlist(
+            @PathVariable Long roomId,
+            @Valid @RequestBody UpdateWishlistRequest request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return roomService.updateMyWishlist(roomId, request, currentUser(userDetails));
     }
 
     @PostMapping("/{roomId}/restrictions")

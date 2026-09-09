@@ -4,6 +4,10 @@ build/
 target/
 node_modules/
 dist/
+uploads/
+*.tsbuildinfo
+.env
+.env.production
 frontend/node_modules/
 frontend/dist/
 !**/src/main/**/build/

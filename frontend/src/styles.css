@@ -589,8 +589,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .assignment-card h2 {
   margin: 0;
+  max-width: 100%;
   font-size: clamp(2.6rem, 7vw, 5rem);
   line-height: 0.95;
+  overflow-wrap: anywhere;
 }
 
 .assignment-card p {
@@ -721,7 +723,7 @@ textarea {
   resize: vertical;
 }
 
-.submit-button, .primary-action, .draw-button, .ghost-action, .icon-button {
+.submit-button, .primary-action, .draw-button, .danger-action, .ghost-action, .icon-button {
   border: 0;
   border-radius: 8px;
   min-height: 50px;
@@ -764,12 +766,19 @@ textarea {
   box-shadow: 0 18px 42px rgba(143, 24, 37, 0.32);
 }
 
+.danger-action {
+  color: #7b1f28;
+  padding: 0 18px;
+  border: 1px solid rgba(196, 42, 54, 0.28);
+  background: rgba(255, 242, 241, 0.92);
+}
+
 .ghost-action {
   color: #5d6b62;
   background: rgba(255, 253, 248, 0.62);
 }
 
-.submit-button:hover, .primary-action:hover, .draw-button:hover, .ghost-action:hover, .icon-button:hover {
+.submit-button:hover, .primary-action:hover, .draw-button:hover, .danger-action:hover, .ghost-action:hover, .icon-button:hover {
   transform: translateY(-2px);
   filter: brightness(1.02);
 }
@@ -811,6 +820,16 @@ textarea {
 .room-header-content {
   position: relative;
   z-index: 1;
+}
+
+.room-header-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
 }
 
 .room-header h1 {

@@ -11,4 +11,6 @@ public interface DrawRestrictionRepository extends JpaRepository<DrawRestriction
     List<DrawRestriction> findByRoomId(Long roomId);
 
     boolean existsByRoomAndGiverAndReceiver(Room room, RoomParticipant giver, RoomParticipant receiver);
+
+    void deleteByRoom(Room room);
 }

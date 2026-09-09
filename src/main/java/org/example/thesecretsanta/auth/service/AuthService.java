@@ -9,7 +9,7 @@ import org.example.thesecretsanta.auth.dto.RegisterRequest;
 import org.example.thesecretsanta.auth.dto.ResetPasswordRequest;
 import org.example.thesecretsanta.common.dto.MessageResponse;
 import org.example.thesecretsanta.config.AppProperties;
-import org.example.thesecretsanta.mail.MailService;
+import org.example.thesecretsanta.mail.MailClient;
 import org.example.thesecretsanta.security.JwtService;
 import org.example.thesecretsanta.user.dao.UserRepository;
 import org.example.thesecretsanta.user.domain.User;
@@ -34,7 +34,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final MailService mailService;
+    private final MailClient mailClient;
     private final AppProperties appProperties;
     private final UserNameService userNameService;
 
@@ -44,7 +44,7 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager,
             JwtService jwtService,
-            MailService mailService,
+            MailClient mailClient,
             AppProperties appProperties,
             UserNameService userNameService
     ) {
@@ -53,7 +53,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
-        this.mailService = mailService;
+        this.mailClient = mailClient;
         this.appProperties = appProperties;
         this.userNameService = userNameService;
     }
@@ -94,7 +94,7 @@ public class AuthService {
             String token = randomToken();
             resetTokenRepository.save(new PasswordResetToken(user, token, Instant.now().plus(30, ChronoUnit.MINUTES)));
             String resetLink = appProperties.publicUrl() + "/reset-password?token=" + token;
-            mailService.send(
+            mailClient.send(
                     user.getEmail(),
                     "The Secret Santa: восстановление пароля",
                     "Для смены пароля откройте ссылку:\n\n" + resetLink + "\n\nСсылка действует 30 минут."
