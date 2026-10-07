@@ -118,8 +118,13 @@ export function Card({
     if (!window.matchMedia('(pointer: fine)').matches) return;
     const card = event.currentTarget;
     const rect = card.getBoundingClientRect();
-    card.style.setProperty('--mouse-x', `${event.clientX - rect.left}px`);
-    card.style.setProperty('--mouse-y', `${event.clientY - rect.top}px`);
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    card.style.setProperty('--mouse-x', `${localX}px`);
+    card.style.setProperty('--mouse-y', `${localY}px`);
+    card.style.setProperty('--px', `${(localX / rect.width) * 100}%`);
+    card.style.setProperty('--py', `${(localY / rect.height) * 100}%`);
+    card.style.setProperty('--h', '1');
     card.style.setProperty('--tilt-x', `${(((event.clientY - rect.top) / rect.height) - 0.5) * -2.2}deg`);
     card.style.setProperty('--tilt-y', `${(((event.clientX - rect.left) / rect.width) - 0.5) * 2.6}deg`);
   }
@@ -128,6 +133,7 @@ export function Card({
     const card = event.currentTarget;
     card.style.setProperty('--tilt-x', '0deg');
     card.style.setProperty('--tilt-y', '0deg');
+    card.style.setProperty('--h', '0');
   }
 
   return (

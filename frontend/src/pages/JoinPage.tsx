@@ -1,27 +1,32 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Ticket } from 'lucide-react';
 import type { InvitePreview, Room } from '../api';
 import { request } from '../api';
 import { Button, Card, SkeletonCards, TextAreaField } from '../components/ui';
+import { useRevealOnView } from '../hooks/useRevealOnView';
 
 export function JoinPage({
   token,
   inviteCode,
   onJoined,
-  onToast
+  onToast,
+  onCancel
 }: {
   token: string;
   inviteCode: string;
   onJoined: (room: Room) => void;
+  onCancel: () => void;
   onToast: (type: 'success' | 'error' | 'info', message: string) => void;
 }) {
+  const pageRef = useRef<HTMLDivElement>(null);
+  useRevealOnView(pageRef);
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    request<InvitePreview>(`/rooms/invite/${inviteCode}`, {}, token)
+    request<InvitePreview>(`/rooms/invite/${encodeURIComponent(inviteCode)}`, {}, token)
       .then(setPreview)
       .catch((err) => {
         console.error(err);
@@ -35,7 +40,7 @@ export function JoinPage({
     setJoining(true);
     const form = new FormData(event.currentTarget);
     try {
-      const joinedRoom = await request<Room>(`/rooms/join/${inviteCode}`, {
+      const joinedRoom = await request<Room>(`/rooms/join/${encodeURIComponent(inviteCode)}`, {
         method: 'POST',
         body: JSON.stringify({
           wishlist: String(form.get('wishlist') ?? '').trim(),
@@ -53,23 +58,28 @@ export function JoinPage({
     }
   }
 
-  if (loading) {
-    return <div className="page"><SkeletonCards count={1} /></div>;
-  }
-
   return (
-    <div className="page join-page">
-      <Card className="join-card">
-        <div className="join-icon"><Ticket size={30} /></div>
-        <span className="eyebrow">Приглашение</span>
-        <h1>{preview ? `Присоединиться к "${preview.name}"` : 'Приглашение в комнату'}</h1>
-        <p>{preview?.description || 'Добавьте пожелания, чтобы ваш Тайный Санта увидел их после жеребьевки.'}</p>
-        <form className="stack-form" onSubmit={submit}>
-          <TextAreaField label="Пожелания" name="wishlist" maxLength={1000} placeholder="Что вы хотели бы получить?" />
-          <TextAreaField label="Ссылки" name="wishlistLinks" maxLength={1500} placeholder="Одна ссылка на строку" />
-          <Button type="submit" loading={joining}>Войти в комнату</Button>
-        </form>
-      </Card>
+    <div className="page join-page" ref={pageRef}>
+      {loading ? (
+        <SkeletonCards count={1} />
+      ) : (
+        <Card className="join-card">
+          <div className="join-icon"><Ticket size={30} /></div>
+          <span className="eyebrow">Приглашение</span>
+          <h1>{preview ? `Присоединиться к "${preview.name}"` : 'Приглашение в комнату'}</h1>
+          {!preview && <p>Приглашение недействительно или комната больше недоступна.</p>}
+          <p>{preview?.description || 'Добавьте пожелания, чтобы ваш Тайный Санта увидел их после жеребьевки.'}</p>
+          {preview && preview.status === 'OPEN' ? (
+            <form className="stack-form" onSubmit={submit}>
+              <TextAreaField label="Пожелания" name="wishlist" maxLength={1000} placeholder="Что вы хотели бы получить?" />
+              <TextAreaField label="Ссылки" name="wishlistLinks" maxLength={1500} placeholder="Одна ссылка на строку" />
+              <Button type="submit" loading={joining}>Войти в комнату</Button>
+            </form>
+          ) : (
+            <Button type="button" variant="secondary" onClick={onCancel}>На главную</Button>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

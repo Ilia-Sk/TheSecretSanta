@@ -12,25 +12,35 @@ import { RoomPage } from './pages/RoomPage';
 import type { AppView, ToastMessage, ToastType } from './types';
 
 const storedAuth = readStoredAuth();
+const pendingInvite = readInviteCodeFromPath() ?? sessionStorage.getItem('secret-santa-pending-invite');
 
 export function App() {
   const [auth, setAuth] = useState<AuthResponse | null>(storedAuth);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+  const [joinedRoom, setJoinedRoom] = useState<Room | null>(null);
   const [assignment, setAssignment] = useState<MyAssignment | null>(null);
-  const [view, setView] = useState<AppView>('dashboard');
+  const [view, setView] = useState<AppView>(pendingInvite && storedAuth ? 'join' : 'dashboard');
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const inviteCode = window.location.pathname.startsWith('/join/')
-    ? window.location.pathname.replace('/join/', '').trim()
-    : null;
+  const [inviteCode, setInviteCode] = useState<string | null>(pendingInvite);
+
+  useEffect(() => {
+    if (inviteCode) {
+      sessionStorage.setItem('secret-santa-pending-invite', inviteCode);
+    } else {
+      sessionStorage.removeItem('secret-santa-pending-invite');
+    }
+  }, [inviteCode]);
 
   const selectedRoom = useMemo(
-    () => selectedRoomId === null ? null : rooms.find((room) => room.id === selectedRoomId) ?? null,
-    [rooms, selectedRoomId]
+    () => joinedRoom?.id === selectedRoomId
+      ? joinedRoom
+      : selectedRoomId === null ? null : rooms.find((room) => room.id === selectedRoomId) ?? null,
+    [joinedRoom, rooms, selectedRoomId]
   );
 
   const showToast = useCallback((type: ToastType, message: string) => {
@@ -109,10 +119,10 @@ export function App() {
   }, [auth, selectedRoom?.id, selectedRoom?.status, showToast]);
 
   useEffect(() => {
-    if (auth && inviteCode) {
+    if (auth && inviteCode && view !== 'room') {
       setView('join');
     }
-  }, [auth, inviteCode]);
+  }, [auth, inviteCode, view]);
 
   function saveAuth(nextAuth: AuthResponse) {
     setAuth(nextAuth);
@@ -141,7 +151,7 @@ export function App() {
     setRooms([]);
     setSelectedRoomId(null);
     setAssignment(null);
-    setView('dashboard');
+    setView(inviteCode ? 'join' : 'dashboard');
     sessionStorage.removeItem('secret-santa-auth');
     showToast('info', 'Вы вышли из аккаунта');
   }
@@ -154,7 +164,7 @@ export function App() {
   if (!auth) {
     return (
       <>
-        <AuthPage onAuth={saveAuth} onToast={showToast} />
+        <AuthPage onAuth={saveAuth} onToast={showToast} invitePending={Boolean(inviteCode)} />
         <Toasts toasts={toasts} onDismiss={dismissToast} />
       </>
     );
@@ -186,10 +196,18 @@ export function App() {
             onToast={showToast}
             onJoined={(room) => {
               window.history.replaceState({}, '', '/');
+              setInviteCode(null);
               setRooms((current) => current.some((item) => item.id === room.id)
                 ? current.map((item) => item.id === room.id ? room : item)
                 : [room, ...current]);
-              openRoom(room.id);
+              setJoinedRoom(room);
+              setSelectedRoomId(room.id);
+              setView('room');
+            }}
+            onCancel={() => {
+              window.history.replaceState({}, '', '/');
+              setInviteCode(null);
+              setView('dashboard');
             }}
           />
         ) : view === 'profile' ? (
@@ -250,6 +268,17 @@ function readStoredAuth(): AuthResponse | null {
     return JSON.parse(value) as AuthResponse;
   } catch {
     sessionStorage.removeItem('secret-santa-auth');
+    return null;
+  }
+}
+
+function readInviteCodeFromPath(): string | null {
+  const match = window.location.pathname.match(/^\/join\/([^/]+)\/?$/);
+  if (!match) return null;
+
+  try {
+    return decodeURIComponent(match[1]).trim() || null;
+  } catch {
     return null;
   }
 }

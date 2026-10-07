@@ -9,10 +9,12 @@ import type { AuthMode } from '../types';
 
 export function AuthPage({
   onAuth,
-  onToast
+  onToast,
+  invitePending = false
 }: {
   onAuth: (auth: AuthResponse) => void;
   onToast: (type: 'success' | 'error' | 'info', message: string) => void;
+  invitePending?: boolean;
 }) {
   const sceneRef = useRef<HTMLElement>(null);
   const [mode, setMode] = useState<AuthMode>('login');
@@ -112,14 +114,15 @@ export function AuthPage({
         <div className="depth-layer depth-mid" aria-hidden="true" />
         <PremiumGiftObject className="auth-gift" />
         <div className="hero-content premium-copy">
-          <div className="hero-kicker"><Sparkles size={16} /> Праздничная жеребьевка</div>
+          <div className="hero-kicker"><Sparkles size={16} /> Приглашение</div>
           <h1 aria-label="The Secret Santa">
-            <span>The Secret</span>
-            <span>Santa</span>
+            <span>Тайна,</span>
+            <span><em>завернутая</em></span>
+            <span>в подарок</span>
           </h1>
           <p className="text-reveal">
-            <span>Подарки становятся интереснее,</span>
-            <span>когда остаются тайной.</span>
+            <span>Соберите близких, задайте бюджет</span>
+            <span>и доверьте жребию самое приятное.</span>
           </p>
           <p className="hero-subcopy">Создавайте комнаты, приглашайте друзей и проводите жеребьевку в атмосфере тихого зимнего света.</p>
         </div>
@@ -130,7 +133,7 @@ export function AuthPage({
           <div className="auth-logo">
             <span><Gift size={22} /></span>
             <div>
-              <strong>Добро пожаловать</strong>
+              <strong>{mode === 'login' ? 'С возвращением' : 'Добро пожаловать'}</strong>
               <small>{mode === 'register' ? 'Создайте аккаунт для первой комнаты' : 'Войдите, чтобы продолжить'}</small>
             </div>
           </div>
@@ -147,6 +150,9 @@ export function AuthPage({
           )}
 
           <InlineError message={error} />
+          {invitePending && (mode === 'login' || mode === 'register') && (
+            <p className="auth-invite-notice">После {mode === 'login' ? 'входа' : 'регистрации'} вы продолжите присоединение к комнате.</p>
+          )}
 
           {mode === 'forgot' ? (
             <form className="animated-form" onSubmit={submitForgotPassword}>
@@ -162,10 +168,10 @@ export function AuthPage({
           ) : (
             <form className="animated-form" onSubmit={submitAuth}>
               {mode === 'login' ? (
-                <Field label="Логин" name="login" placeholder="Ваш логин" autoComplete="username" required />
+                <Field label="Имя и фамилия" name="login" placeholder="Анна Иванова" autoComplete="name" required />
               ) : (
                 <>
-                  <Field label="Имя" name="displayName" placeholder="Анна Иванова" maxLength={120} autoComplete="name" required />
+                  <Field label="Имя и фамилия" name="displayName" placeholder="Анна Иванова" maxLength={120} autoComplete="name" required />
                   <Field label="Email" name="email" type="email" placeholder="name@example.com" autoComplete="email" required />
                 </>
               )}
@@ -173,6 +179,8 @@ export function AuthPage({
                 visible={passwordVisible}
                 onToggle={() => setPasswordVisible((value) => !value)}
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                minLength={mode === 'login' ? undefined : 6}
+                placeholder={mode === 'login' ? 'Введите пароль' : undefined}
               />
               <Button loading={loading} type="submit">
                 <UserRound size={17} />
@@ -194,11 +202,15 @@ export function AuthPage({
 function PasswordField({
   visible,
   onToggle,
-  autoComplete
+  autoComplete,
+  minLength = 6,
+  placeholder = 'Минимум 6 символов'
 }: {
   visible: boolean;
   onToggle: () => void;
   autoComplete: string;
+  minLength?: number;
+  placeholder?: string;
 }) {
   return (
     <label className="field password-field">
@@ -207,8 +219,8 @@ function PasswordField({
         <input
           name="password"
           type={visible ? 'text' : 'password'}
-          minLength={6}
-          placeholder="Минимум 6 символов"
+          minLength={minLength}
+          placeholder={placeholder}
           autoComplete={autoComplete}
           required
         />

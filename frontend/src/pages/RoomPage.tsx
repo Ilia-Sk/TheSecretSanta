@@ -91,9 +91,20 @@ export function RoomPage({
     () => room.participants.find((participant) => participant.userId === currentUserId) ?? null,
     [room.participants, currentUserId]
   );
+  const isOwner = room.owner || room.ownerId === currentUserId || currentParticipant?.owner === true;
+  const visibleTabs = useMemo(
+    () => tabs.filter((tab) => tab.id !== 'restrictions' || isOwner),
+    [isOwner]
+  );
 
-  const inviteLink = `${window.location.origin}/join/${room.inviteCode}`;
+  const inviteLink = `${window.location.origin}/join/${encodeURIComponent(room.inviteCode)}`;
   const wishlistLinks = splitLinks(currentParticipant?.wishlistLinks ?? null);
+
+  useEffect(() => {
+    if (!isOwner && activeTab === 'restrictions') {
+      setActiveTab('overview');
+    }
+  }, [activeTab, isOwner]);
 
   async function run(label: string, action: () => Promise<void>): Promise<boolean> {
     setBusy(label);
@@ -124,6 +135,11 @@ export function RoomPage({
 
   async function updateRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isOwner) {
+      onToast('error', 'Редактировать комнату может только владелец.');
+      setActiveTab('overview');
+      return;
+    }
     const form = new FormData(event.currentTarget);
     await run('room', async () => {
       await request<Room>(`/rooms/${room.id}`, {
@@ -158,6 +174,11 @@ export function RoomPage({
 
   async function addRestriction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isOwner) {
+      onToast('error', 'Ограничения доступны только владельцу комнаты.');
+      setActiveTab('overview');
+      return;
+    }
     const form = new FormData(event.currentTarget);
     await run('restriction', async () => {
       await request<Room>(`/rooms/${room.id}/restrictions`, {
@@ -173,6 +194,11 @@ export function RoomPage({
   }
 
   async function deleteRestriction(restrictionId: number) {
+    if (!isOwner) {
+      onToast('error', 'Ограничения доступны только владельцу комнаты.');
+      setActiveTab('overview');
+      return;
+    }
     await run(`restriction-${restrictionId}`, async () => {
       await request<Room>(`/rooms/${room.id}/restrictions/${restrictionId}`, { method: 'DELETE' }, token);
       onToast('success', 'Ограничение удалено');
@@ -181,6 +207,11 @@ export function RoomPage({
   }
 
   async function drawRoom() {
+    if (!isOwner) {
+      onToast('error', 'Провести жеребьевку может только владелец комнаты.');
+      setActiveTab('overview');
+      return;
+    }
     setConfirmDraw(false);
     const startedAt = performance.now();
     setDrawPhase('requesting');
@@ -210,6 +241,11 @@ export function RoomPage({
   }, []);
 
   async function deleteRoom() {
+    if (!isOwner) {
+      onToast('error', 'Удалить комнату может только владелец.');
+      setActiveTab('overview');
+      return;
+    }
     await run('delete', async () => {
       await request<void>(`/rooms/${room.id}`, { method: 'DELETE' }, token);
       onToast('success', 'Комната удалена');
@@ -231,7 +267,7 @@ export function RoomPage({
             <span><Users size={16} />{room.participants.length} участников</span>
           </div>
           <div className="room-hero-actions">
-            {room.owner && room.status === 'OPEN' && (
+            {isOwner && room.status === 'OPEN' && (
               <Button type="button" variant="accent" onClick={() => setConfirmDraw(true)}>
                 <Shuffle size={18} />
                 Провести жеребьевку
@@ -251,7 +287,7 @@ export function RoomPage({
       </section>
 
       <nav className="room-tabs" aria-label="Разделы комнаты" role="tablist" data-reveal>
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
@@ -288,6 +324,7 @@ export function RoomPage({
             onCopyInvite={copyInvite}
             onToggleInvite={() => setShowInviteLink((value) => !value)}
             onOpenAssignment={() => setShowAssignment(true)}
+            isOwner={isOwner}
           />
         )}
 
@@ -322,9 +359,10 @@ export function RoomPage({
           />
         )}
 
-        {activeTab === 'restrictions' && (
+        {isOwner && activeTab === 'restrictions' && (
           <RestrictionsSection
             room={room}
+            isOwner={isOwner}
             busy={busy}
             onAdd={addRestriction}
             onDelete={deleteRestriction}
@@ -334,6 +372,7 @@ export function RoomPage({
         {activeTab === 'settings' && (
           <SettingsSection
             room={room}
+            isOwner={isOwner}
             busy={busy}
             onUpdateRoom={updateRoom}
             onDeleteRoom={() => setConfirmDelete(true)}
@@ -406,7 +445,8 @@ function OverviewSection({
   showInviteLink,
   onCopyInvite,
   onToggleInvite,
-  onOpenAssignment
+  onOpenAssignment,
+  isOwner
 }: {
   room: Room;
   assignment: MyAssignment | null;
@@ -416,6 +456,7 @@ function OverviewSection({
   onCopyInvite: () => void;
   onToggleInvite: () => void;
   onOpenAssignment: () => void;
+  isOwner: boolean;
 }) {
   return (
     <div className="overview-grid">
@@ -426,7 +467,7 @@ function OverviewSection({
           <div><span>Дата</span><strong>{formatDate(room.celebrationDate)}</strong></div>
           <div><span>Бюджет</span><strong>{formatBudget(room.giftBudget)}</strong></div>
           <div><span>Участники</span><strong>{room.participants.length}</strong></div>
-          <div><span>Ограничения</span><strong>{room.restrictions.length}</strong></div>
+          {isOwner && <div><span>Ограничения</span><strong>{room.restrictions.length}</strong></div>}
         </div>
       </Card>
 
@@ -556,11 +597,13 @@ function WishlistSection({
 
 function RestrictionsSection({
   room,
+  isOwner,
   busy,
   onAdd,
   onDelete
 }: {
   room: Room;
+  isOwner: boolean;
   busy: string | null;
   onAdd: (event: FormEvent<HTMLFormElement>) => void;
   onDelete: (restrictionId: number) => void;
@@ -602,7 +645,7 @@ function RestrictionsSection({
         </div>
       </div>
 
-      {room.owner && room.status === 'OPEN' && (
+      {isOwner && room.status === 'OPEN' && (
         <Card className="restriction-editor">
           <form className="restriction-form" onSubmit={submitRestriction}>
             <label className="field">
@@ -656,7 +699,7 @@ function RestrictionsSection({
             <strong>{restriction.giverName}</strong>
             <span><X size={16} /> не может получить</span>
             <strong>{restriction.receiverName}</strong>
-            {room.owner && room.status === 'OPEN' && (
+            {isOwner && room.status === 'OPEN' && (
               <IconButton label="Удалить ограничение" onClick={() => onDelete(restriction.id)}>
                 <X size={15} />
               </IconButton>
@@ -670,18 +713,20 @@ function RestrictionsSection({
 
 function SettingsSection({
   room,
+  isOwner,
   busy,
   onUpdateRoom,
   onDeleteRoom
 }: {
   room: Room;
+  isOwner: boolean;
   busy: string | null;
   onUpdateRoom: (event: FormEvent<HTMLFormElement>) => void;
   onDeleteRoom: () => void;
 }) {
   return (
     <div className="settings-layout">
-      {room.owner && room.status === 'OPEN' ? (
+      {isOwner && room.status === 'OPEN' ? (
         <Card className="settings-card">
           <div className="section-heading compact">
             <div>
@@ -706,11 +751,11 @@ function SettingsSection({
       ) : (
         <Card className="settings-card">
           <h2>Настройки недоступны</h2>
-          <p>{room.owner ? 'После жеребьевки ключевые параметры комнаты зафиксированы.' : 'Редактировать комнату может только владелец.'}</p>
+          <p>{isOwner ? 'После жеребьевки ключевые параметры комнаты зафиксированы.' : 'Редактировать комнату может только владелец.'}</p>
         </Card>
       )}
 
-      {room.owner && (
+      {isOwner && (
         <Card className="danger-zone">
           <span className="eyebrow">Опасная зона</span>
           <h2>Удаление комнаты</h2>

@@ -87,7 +87,7 @@ export function ProfilePage({
         <section className="profile-hero">
           <div className="avatar-uploader">
             <Avatar name={profile.displayName} avatarUrl={visibleAvatar} size="xl" />
-            <label className="avatar-overlay">
+            <label className="avatar-upload-button">
               <Camera size={18} />
               <span>{uploading ? 'Загрузка...' : 'Сменить фото'}</span>
               <input

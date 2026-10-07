@@ -1,63 +1,101 @@
 import { Gift } from 'lucide-react';
-import { gsap } from 'gsap';
-import { useEffect, useId, useLayoutEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import type { CSSProperties } from 'react';
 
 type GiftRevealState = 'closed' | 'opening' | 'open';
 
-type GiftSetters = {
-  rotateX: (value: number) => void;
-  rotateY: (value: number) => void;
-  x: (value: number) => void;
-  y: (value: number) => void;
-  shadowX: (value: number) => void;
-  shadowY: (value: number) => void;
-  shadowScale: (value: number) => void;
-  specularX: (value: number) => void;
-  specularOpacity: (value: number) => void;
-};
-
-const sparkParticles = [
-  { cx: 151, cy: 130, r: 2.4, dx: -23, dy: -36 },
-  { cx: 180, cy: 122, r: 1.8, dx: 0, dy: -43 },
-  { cx: 207, cy: 134, r: 2.2, dx: 26, dy: -34 },
-  { cx: 133, cy: 158, r: 1.5, dx: -38, dy: -19 },
-  { cx: 225, cy: 159, r: 1.4, dx: 43, dy: -16 },
-  { cx: 162, cy: 171, r: 1.2, dx: -17, dy: -4 },
-  { cx: 199, cy: 172, r: 1.2, dx: 18, dy: -5 },
-  { cx: 180, cy: 146, r: 1.6, dx: 2, dy: -26 },
-  { cx: 147, cy: 190, r: 1.3, dx: -30, dy: 8 },
-  { cx: 214, cy: 190, r: 1.3, dx: 32, dy: 8 },
-  { cx: 173, cy: 109, r: 1.2, dx: -7, dy: -50 },
-  { cx: 191, cy: 111, r: 1.1, dx: 12, dy: -48 }
-];
-
-function prefersReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function seeded(index: number) {
+  const value = Math.sin(index * 9301 + 49297) * 233280;
+  return value - Math.floor(value);
 }
 
-export function AmbientLayer({ compact = false }: { compact?: boolean }) {
-  const count = compact ? 22 : 42;
+function finePointer() {
   return (
-    <div className={compact ? 'ambient-layer compact' : 'ambient-layer'} aria-hidden="true">
-      <div className="aurora aurora-a" />
-      <div className="aurora aurora-b" />
-      <div className="vignette" />
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
+const particles = Array.from({ length: 18 }, (_, index) => ({
+  left: seeded(index) * 100,
+  top: 10 + seeded(index + 100) * 90,
+  size: 0.7 + Math.pow(seeded(index + 200), 2) * 2.1,
+  duration: 42 + seeded(index + 300) * 46,
+  delay: -seeded(index + 400) * 82,
+  dx: (seeded(index + 500) - 0.5) * 44,
+  opacity: 0.1 + seeded(index + 600) * 0.32,
+  blur: seeded(index + 700) > 0.7
+}));
+
+export function AmbientLayer({ compact = false }: { compact?: boolean }) {
+  const lightRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const light = lightRef.current;
+    if (!light || !finePointer()) return;
+    const node = light;
+
+    let x = 0.3;
+    let y = 0.4;
+    let targetX = x;
+    let targetY = y;
+    let frameId = 0;
+    let running = false;
+
+    function animate() {
+      x += (targetX - x) * 0.052;
+      y += (targetY - y) * 0.052;
+      node.style.transform = `translate3d(${x * window.innerWidth - 340}px, ${y * window.innerHeight - 260}px, 0)`;
+
+      if (Math.abs(targetX - x) + Math.abs(targetY - y) > 0.0005) {
+        frameId = window.requestAnimationFrame(animate);
+      } else {
+        running = false;
+      }
+    }
+
+    function onPointerMove(event: PointerEvent) {
+      targetX = event.clientX / window.innerWidth;
+      targetY = event.clientY / window.innerHeight;
+      if (!running) {
+        running = true;
+        frameId = window.requestAnimationFrame(animate);
+      }
+    }
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    frameId = window.requestAnimationFrame(animate);
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  return (
+    <div className={compact ? 'ambient-layer compact reference-atmosphere' : 'ambient-layer reference-atmosphere'} aria-hidden="true">
+      <div className="ambient-gradient" />
+      <div ref={lightRef} className="cursor-follow-light" />
       <div className="grain" />
-      <div className="particle-field">
-        {Array.from({ length: count }).map((_, index) => (
+      <div className="particle-field reference-particles">
+        {particles.map((particle, index) => (
           <span
             key={index}
             style={{
-              '--p-x': `${(index * 29) % 100}%`,
-              '--p-y': `${(index * 47) % 100}%`,
-              '--p-size': `${2 + (index % 4)}px`,
-              '--p-delay': `${-(index % 12) * 0.7}s`,
-              '--p-duration': `${11 + (index % 11)}s`
+              left: `${particle.left}%`,
+              top: `${particle.top}%`,
+              width: particle.size,
+              height: particle.size,
+              filter: particle.blur ? 'blur(1px)' : undefined,
+              animationDuration: `${particle.duration}s`,
+              animationDelay: `${particle.delay}s`,
+              '--dx': `${particle.dx}px`,
+              '--o': particle.opacity
             } as CSSProperties}
           />
         ))}
       </div>
+      <div className="vignette" />
     </div>
   );
 }
@@ -75,371 +113,183 @@ export function PremiumGiftObject({
   revealState?: GiftRevealState;
   onRevealComplete?: () => void;
 }) {
-  const stageRef = useRef<HTMLDivElement>(null);
-  const floatRef = useRef<SVGGElement>(null);
-  const rigRef = useRef<SVGGElement>(null);
-  const lidRef = useRef<SVGGElement>(null);
-  const bowRef = useRef<SVGGElement>(null);
-  const leftBowRef = useRef<SVGGElement>(null);
-  const rightBowRef = useRef<SVGGElement>(null);
-  const knotRef = useRef<SVGGElement>(null);
-  const verticalRibbonRef = useRef<SVGGElement>(null);
-  const horizontalRibbonRef = useRef<SVGGElement>(null);
-  const glowRef = useRef<SVGGElement>(null);
-  const shadowRef = useRef<SVGEllipseElement>(null);
-  const specularRef = useRef<SVGPathElement>(null);
-  const hoverSweepRef = useRef<SVGRectElement>(null);
-  const particleGroupRef = useRef<SVGGElement>(null);
-  const settersRef = useRef<GiftSetters | null>(null);
-  const idleTimelineRef = useRef<gsap.core.Timeline | null>(null);
-  const revealTimelineRef = useRef<gsap.core.Timeline | null>(null);
-  const hoverSweepTimelineRef = useRef<gsap.core.Tween | null>(null);
+  const objectRef = useRef<HTMLDivElement>(null);
+  const shadowRef = useRef<HTMLDivElement>(null);
   const targetState = revealState ?? (open ? 'open' : 'closed');
-  const idPrefix = `gift-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const rawId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const id = `gift-${rawId}`;
   const ids = {
-    bodyGradient: `${idPrefix}-body-gradient`,
-    bodySideGradient: `${idPrefix}-body-side-gradient`,
-    lidGradient: `${idPrefix}-lid-gradient`,
-    ribbonGradient: `${idPrefix}-ribbon-gradient`,
-    glowGradient: `${idPrefix}-glow-gradient`,
-    specularGradient: `${idPrefix}-specular-gradient`,
-    sweepGradient: `${idPrefix}-sweep-gradient`,
-    softBlur: `${idPrefix}-soft-blur`,
-    fineShadow: `${idPrefix}-fine-shadow`,
-    ribbonClip: `${idPrefix}-ribbon-clip`
+    body: `${id}-body`,
+    bodyVertical: `${id}-body-v`,
+    lid: `${id}-lid`,
+    lidTop: `${id}-lid-top`,
+    ribbon: `${id}-rib`,
+    ribbonHorizontal: `${id}-rib-h`,
+    loop: `${id}-loop`,
+    sheen: `${id}-sheen`,
+    ribbonClip: `${id}-ribbon-clip`
   };
-  const urlFor = (id: string) => `url(#${id})`;
+  const url = (value: string) => `url(#${value})`;
 
-  useLayoutEffect(() => {
-    const stage = stageRef.current;
-    const rig = rigRef.current;
-    const float = floatRef.current;
-    const shadow = shadowRef.current;
-    const specular = specularRef.current;
-    const hoverSweep = hoverSweepRef.current;
-    if (!stage || !rig || !float || !shadow || !specular || !hoverSweep) return;
+  useEffect(() => {
+    if (!interactive || !finePointer()) return;
 
-    const reduced = prefersReducedMotion();
-    const context = gsap.context(() => {
-      gsap.set([rig, float], { transformOrigin: '50% 50%' });
-      gsap.set([lidRef.current, bowRef.current, leftBowRef.current, rightBowRef.current, knotRef.current], {
-        transformOrigin: '50% 70%'
-      });
-      gsap.set([verticalRibbonRef.current, horizontalRibbonRef.current], { transformOrigin: '50% 50%' });
-      gsap.set(glowRef.current, { opacity: 0, scale: 0.82, transformOrigin: '50% 50%' });
-      gsap.set(particleGroupRef.current?.children ?? [], { opacity: 0, scale: 0.4, transformOrigin: '50% 50%' });
-      gsap.set(hoverSweep, { opacity: 0, x: -90 });
+    let targetX = 0;
+    let targetY = 0;
+    let currentX = 0;
+    let currentY = 0;
+    let frameId = 0;
+    const startedAt = performance.now();
 
-      if (reduced || !interactive) {
-        settersRef.current = null;
-        return;
+    function onPointerMove(event: PointerEvent) {
+      targetX = (event.clientX / window.innerWidth) * 2 - 1;
+      targetY = (event.clientY / window.innerHeight) * 2 - 1;
+    }
+
+    function animate(time: number) {
+      currentX += (targetX - currentX) * 0.045;
+      currentY += (targetY - currentY) * 0.045;
+      const float = Math.sin((time - startedAt) / 1700) * 2.6;
+
+      if (objectRef.current) {
+        objectRef.current.style.transform = `translateY(${float}px) rotateY(${currentX * 4}deg) rotateX(${-currentY * 2.5}deg)`;
+      }
+      if (shadowRef.current) {
+        shadowRef.current.style.transform = `translateX(${-currentX * 10}px) scale(${1 - float / 120})`;
+        shadowRef.current.style.opacity = String(0.66 - float / 42);
       }
 
-      settersRef.current = {
-        rotateX: gsap.quickTo(rig, 'rotationX', { duration: 0.62, ease: 'power3.out' }),
-        rotateY: gsap.quickTo(rig, 'rotationY', { duration: 0.62, ease: 'power3.out' }),
-        x: gsap.quickTo(rig, 'x', { duration: 0.62, ease: 'power3.out' }),
-        y: gsap.quickTo(rig, 'y', { duration: 0.62, ease: 'power3.out' }),
-        shadowX: gsap.quickTo(shadow, 'x', { duration: 0.7, ease: 'power3.out' }),
-        shadowY: gsap.quickTo(shadow, 'y', { duration: 0.7, ease: 'power3.out' }),
-        shadowScale: gsap.quickTo(shadow, 'scaleX', { duration: 0.7, ease: 'power3.out' }),
-        specularX: gsap.quickTo(specular, 'x', { duration: 0.55, ease: 'power3.out' }),
-        specularOpacity: gsap.quickTo(specular, 'opacity', { duration: 0.4, ease: 'power2.out' })
-      };
+      frameId = window.requestAnimationFrame(animate);
+    }
 
-      idleTimelineRef.current = gsap.timeline({ repeat: -1, yoyo: true })
-        .to(float, { y: -3, duration: 3.8, ease: 'sine.inOut' })
-        .to(shadow, { scaleX: 0.96, opacity: 0.58, duration: 3.8, ease: 'sine.inOut' }, 0);
-    }, stage);
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    frameId = window.requestAnimationFrame(animate);
 
     return () => {
-      idleTimelineRef.current?.kill();
-      revealTimelineRef.current?.kill();
-      hoverSweepTimelineRef.current?.kill();
-      settersRef.current = null;
-      context.revert();
+      window.removeEventListener('pointermove', onPointerMove);
+      window.cancelAnimationFrame(frameId);
     };
   }, [interactive]);
 
-  useLayoutEffect(() => {
-    const lid = lidRef.current;
-    const bow = bowRef.current;
-    const leftBow = leftBowRef.current;
-    const rightBow = rightBowRef.current;
-    const knot = knotRef.current;
-    const verticalRibbon = verticalRibbonRef.current;
-    const horizontalRibbon = horizontalRibbonRef.current;
-    const glow = glowRef.current;
-    const particles = particleGroupRef.current?.children;
-    if (!lid || !bow || !leftBow || !rightBow || !knot || !verticalRibbon || !horizontalRibbon || !glow) return;
-
-    revealTimelineRef.current?.kill();
-
-    const closedState = {
-      lid: { x: 0, y: 0, rotation: 0 },
-      bow: { x: 0, y: 0, rotation: 0, scale: 1 },
-      leftBow: { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
-      rightBow: { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
-      knot: { scale: 1, y: 0 },
-      verticalRibbon: { opacity: 1, scaleY: 1, y: 0 },
-      horizontalRibbon: { opacity: 1, scaleX: 1, y: 0 },
-      glow: { opacity: 0, scale: 0.82 }
-    };
-
-    const openState = {
-      lid: { x: 10, y: -56, rotation: -5 },
-      bow: { x: 8, y: -58, rotation: -5, scale: 0.98 },
-      leftBow: { x: -7, y: -2, rotation: -7, scaleX: 1.04, scaleY: 0.96 },
-      rightBow: { x: 7, y: -2, rotation: 7, scaleX: 1.04, scaleY: 0.96 },
-      knot: { scale: 0.94, y: -1 },
-      verticalRibbon: { opacity: 0.62, scaleY: 0.9, y: 8 },
-      horizontalRibbon: { opacity: 0.5, scaleX: 0.9, y: 11 },
-      glow: { opacity: 1, scale: 1.08 }
-    };
-
-    function setGiftState(state: typeof closedState, duration = 0.58) {
-      const method = duration === 0 ? gsap.set : gsap.to;
-      method(lid, { ...state.lid, duration, ease: 'power3.out' });
-      method(bow, { ...state.bow, duration, ease: 'power3.out' });
-      method(leftBow, { ...state.leftBow, duration, ease: 'power3.out' });
-      method(rightBow, { ...state.rightBow, duration, ease: 'power3.out' });
-      method(knot, { ...state.knot, duration, ease: 'power3.out' });
-      method(verticalRibbon, { ...state.verticalRibbon, duration, ease: 'power3.out' });
-      method(horizontalRibbon, { ...state.horizontalRibbon, duration, ease: 'power3.out' });
-      method(glow, { ...state.glow, duration, ease: 'power2.out' });
-      if (particles) {
-        gsap.set(particles, { opacity: 0, scale: 0.4, x: 0, y: 0 });
-      }
-    }
-
-    if (targetState === 'opening') {
-      setGiftState(closedState, 0);
-      if (prefersReducedMotion()) {
-        setGiftState(openState, 0);
-        const timeout = window.setTimeout(() => onRevealComplete?.(), 420);
-        return () => window.clearTimeout(timeout);
-      }
-
-      revealTimelineRef.current = gsap.timeline({ onComplete: onRevealComplete })
-        .to([leftBow, rightBow, knot], { y: -2, scaleY: 0.93, duration: 0.42, ease: 'sine.inOut' }, 0.7)
-        .to(horizontalRibbon, { y: 7, scaleX: 0.92, opacity: 0.72, duration: 0.44, ease: 'power2.out' }, 1.08)
-        .to(verticalRibbon, { y: 7, scaleY: 0.91, opacity: 0.74, duration: 0.44, ease: 'power2.out' }, 1.16)
-        .to(bow, { x: 8, y: -58, rotation: -5, scale: 0.98, duration: 0.64, ease: 'power3.out' }, 1.52)
-        .to(lid, { x: 10, y: -56, rotation: -5, duration: 0.7, ease: 'power3.out' }, 1.72)
-        .to(glow, { opacity: 1, scale: 1.08, duration: 0.58, ease: 'sine.out' }, 2.1);
-
-      if (particles) {
-        Array.from(particles).forEach((particle, index) => {
-          const spec = sparkParticles[index % sparkParticles.length];
-          revealTimelineRef.current?.fromTo(
-            particle,
-            { opacity: 0, x: 0, y: 0, scale: 0.35 },
-            { opacity: 0.92, x: spec.dx, y: spec.dy, scale: 1, duration: 0.54, ease: 'power2.out' },
-            2.48 + index * 0.028
-          ).to(
-            particle,
-            { opacity: 0, y: spec.dy - 16, duration: 0.48, ease: 'sine.in' },
-            2.9 + index * 0.02
-          );
-        });
-      }
-      revealTimelineRef.current.to(glow, { opacity: 0.92, duration: 0.28, ease: 'sine.inOut' }, 3.34);
-      return;
-    }
-
-    setGiftState(targetState === 'open' ? openState : closedState, prefersReducedMotion() ? 0 : 0.58);
+  useEffect(() => {
+    if (targetState !== 'opening') return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timeoutId = window.setTimeout(() => onRevealComplete?.(), reduced ? 120 : 1650);
+    return () => window.clearTimeout(timeoutId);
   }, [targetState, onRevealComplete]);
-
-  useEffect(() => () => {
-    idleTimelineRef.current?.kill();
-    revealTimelineRef.current?.kill();
-    hoverSweepTimelineRef.current?.kill();
-  }, []);
-
-  function updateTilt(event: React.PointerEvent<HTMLDivElement>) {
-    const setters = settersRef.current;
-    if (!interactive || !setters) return;
-    if (!window.matchMedia('(pointer: fine)').matches || prefersReducedMotion()) return;
-
-    const target = stageRef.current;
-    if (!target) return;
-    const rect = target.getBoundingClientRect();
-    const x = Math.max(-1, Math.min(1, ((event.clientX - rect.left) / rect.width - 0.5) * 2));
-    const y = Math.max(-1, Math.min(1, ((event.clientY - rect.top) / rect.height - 0.5) * 2));
-
-    setters.rotateY(x * 5);
-    setters.rotateX(y * -3);
-    setters.x(x * 3);
-    setters.y(y * 2.4);
-    setters.shadowX(x * -7);
-    setters.shadowY(Math.abs(y) * 2.5);
-    setters.shadowScale(1 - Math.min(0.07, Math.abs(x) * 0.035 + Math.abs(y) * 0.035));
-    setters.specularX(x * 20);
-    setters.specularOpacity(0.2 + Math.min(0.18, Math.abs(x) * 0.1 + Math.abs(y) * 0.08));
-  }
-
-  function resetTilt() {
-    const setters = settersRef.current;
-    if (!setters) return;
-    setters.rotateY(0);
-    setters.rotateX(0);
-    setters.x(0);
-    setters.y(0);
-    setters.shadowX(0);
-    setters.shadowY(0);
-    setters.shadowScale(1);
-    setters.specularX(0);
-    setters.specularOpacity(0.18);
-  }
-
-  function runHoverSweep() {
-    if (!interactive || prefersReducedMotion() || !hoverSweepRef.current) return;
-    hoverSweepTimelineRef.current?.kill();
-    hoverSweepTimelineRef.current = gsap.fromTo(
-      hoverSweepRef.current,
-      { opacity: 0, x: -86 },
-      { opacity: 0.38, x: 86, duration: 0.72, ease: 'power2.out', repeat: 1, yoyo: true }
-    );
-  }
 
   return (
     <div
-      ref={stageRef}
-      className={`gift-stage premium-gift-stage ${targetState === 'open' ? 'gift-open' : ''} ${className}`.trim()}
-      onPointerEnter={runHoverSweep}
-      onPointerMove={updateTilt}
-      onPointerLeave={resetTilt}
+      className={[
+        'gift-stage premium-gift-stage reference-gift-stage',
+        interactive ? 'gift-hoverable' : '',
+        targetState === 'open' ? 'gift-open' : '',
+        targetState === 'opening' ? 'gift-opening' : '',
+        className
+      ].filter(Boolean).join(' ')}
+      style={{ perspective: '1400px' }}
       aria-hidden="true"
     >
-      <svg className="premium-gift-svg" viewBox="0 0 360 360" role="img">
-        <defs>
-          <linearGradient id={ids.bodyGradient} x1="72" y1="126" x2="284" y2="304" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#b83a42" />
-            <stop offset="0.43" stopColor="#861c27" />
-            <stop offset="1" stopColor="#3b0810" />
-          </linearGradient>
-          <linearGradient id={ids.bodySideGradient} x1="245" y1="156" x2="278" y2="292" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#7b1720" />
-            <stop offset="1" stopColor="#260509" />
-          </linearGradient>
-          <linearGradient id={ids.lidGradient} x1="78" y1="107" x2="280" y2="155" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#cf4d52" />
-            <stop offset="0.48" stopColor="#96222d" />
-            <stop offset="1" stopColor="#5b1119" />
-          </linearGradient>
-          <linearGradient id={ids.ribbonGradient} x1="128" y1="110" x2="221" y2="298" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#fff1b8" />
-            <stop offset="0.24" stopColor="#e8c872" />
-            <stop offset="0.58" stopColor="#bf8f34" />
-            <stop offset="1" stopColor="#7c531e" />
-          </linearGradient>
-          <radialGradient id={ids.glowGradient} cx="50%" cy="45%" r="58%">
-            <stop offset="0" stopColor="#fff4be" stopOpacity="0.9" />
-            <stop offset="0.38" stopColor="#f0c466" stopOpacity="0.38" />
-            <stop offset="1" stopColor="#f0c466" stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id={ids.specularGradient} x1="116" y1="120" x2="210" y2="290" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#fff6e0" stopOpacity="0" />
-            <stop offset="0.45" stopColor="#fff6e0" stopOpacity="0.34" />
-            <stop offset="1" stopColor="#fff6e0" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id={ids.sweepGradient} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#fff6d4" stopOpacity="0" />
-            <stop offset="0.5" stopColor="#fff6d4" stopOpacity="0.68" />
-            <stop offset="1" stopColor="#fff6d4" stopOpacity="0" />
-          </linearGradient>
-          <filter id={ids.softBlur} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="12" />
-          </filter>
-          <filter id={ids.fineShadow} x="-20%" y="-20%" width="140%" height="150%">
-            <feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="#050605" floodOpacity="0.28" />
-          </filter>
-          <clipPath id={ids.ribbonClip}>
-            <path d="M88 116h184c8 0 14 6 14 14v23c0 8-6 14-14 14H88c-8 0-14-6-14-14v-23c0-8 6-14 14-14Z" />
-          </clipPath>
-        </defs>
+      <div ref={shadowRef} className="reference-gift-shadow" />
+      <div ref={objectRef} className="gift-rigid-object">
+        <svg viewBox="0 0 400 420" className="reference-gift-svg" role="img" aria-label="Подарок">
+          <defs>
+            <linearGradient id={ids.body} x1="0" x2="1">
+              <stop offset="0" stopColor="oklch(0.2 0.07 16)" />
+              <stop offset="0.35" stopColor="oklch(0.36 0.12 18)" />
+              <stop offset="0.6" stopColor="oklch(0.32 0.11 18)" />
+              <stop offset="1" stopColor="oklch(0.17 0.06 16)" />
+            </linearGradient>
+            <linearGradient id={ids.bodyVertical} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="oklch(0 0 0 / 0.35)" />
+              <stop offset="0.12" stopColor="oklch(0 0 0 / 0)" />
+              <stop offset="1" stopColor="oklch(0 0 0 / 0.3)" />
+            </linearGradient>
+            <linearGradient id={ids.lid} x1="0" x2="1">
+              <stop offset="0" stopColor="oklch(0.24 0.08 16)" />
+              <stop offset="0.38" stopColor="oklch(0.42 0.13 19)" />
+              <stop offset="0.62" stopColor="oklch(0.36 0.12 18)" />
+              <stop offset="1" stopColor="oklch(0.2 0.07 16)" />
+            </linearGradient>
+            <linearGradient id={ids.lidTop} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="oklch(0.46 0.13 20)" />
+              <stop offset="1" stopColor="oklch(0.32 0.11 18)" />
+            </linearGradient>
+            <linearGradient id={ids.ribbon} x1="0" x2="1">
+              <stop offset="0" stopColor="oklch(0.55 0.07 72)" />
+              <stop offset="0.3" stopColor="oklch(0.88 0.07 86)" />
+              <stop offset="0.5" stopColor="oklch(0.74 0.09 76)" />
+              <stop offset="0.75" stopColor="oklch(0.9 0.06 88)" />
+              <stop offset="1" stopColor="oklch(0.52 0.07 70)" />
+            </linearGradient>
+            <linearGradient id={ids.ribbonHorizontal} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="oklch(0.9 0.06 88)" />
+              <stop offset="0.5" stopColor="oklch(0.72 0.09 75)" />
+              <stop offset="1" stopColor="oklch(0.5 0.07 70)" />
+            </linearGradient>
+            <radialGradient id={ids.loop} cx="0.4" cy="0.35" r="0.8">
+              <stop offset="0" stopColor="oklch(0.93 0.05 88)" />
+              <stop offset="0.5" stopColor="oklch(0.76 0.09 78)" />
+              <stop offset="1" stopColor="oklch(0.5 0.07 70)" />
+            </radialGradient>
+            <radialGradient id={ids.sheen} cx="0.3" cy="0.2" r="0.7">
+              <stop offset="0" stopColor="oklch(1 0 0 / 0.14)" />
+              <stop offset="1" stopColor="oklch(1 0 0 / 0)" />
+            </radialGradient>
+            <clipPath id={ids.ribbonClip}>
+              <rect x="185" y="122" width="30" height="52" rx="1" />
+              <rect x="186" y="170" width="28" height="215" rx="1" />
+              <rect x="188" y="105" width="24" height="20" rx="6" />
+            </clipPath>
+          </defs>
 
-        <ellipse ref={shadowRef} className="premium-gift-shadow" cx="180" cy="307" rx="94" ry="18" />
+          <g className="reference-gift-body">
+            <rect x="70" y="170" width="260" height="215" rx="3" fill={url(ids.body)} />
+            <rect x="70" y="170" width="260" height="215" rx="3" fill={url(ids.bodyVertical)} />
+            <rect x="70" y="170" width="260" height="215" rx="3" fill={url(ids.sheen)} />
+            <line x1="71" y1="384" x2="329" y2="384" stroke="oklch(0 0 0 / 0.5)" strokeWidth="2" />
+            <line x1="71" y1="172" x2="71" y2="384" stroke="oklch(1 0 0 / 0.06)" />
+            <rect x="186" y="170" width="28" height="215" fill={url(ids.ribbon)} />
+            <rect x="186" y="170" width="28" height="215" fill={url(ids.bodyVertical)} opacity="0.7" />
+            <rect x="70" y="170" width="260" height="14" fill="oklch(0 0 0 / 0.45)" />
+          </g>
 
-        <g ref={floatRef}>
-          <g ref={rigRef} className="premium-gift-rig" filter={urlFor(ids.fineShadow)}>
-            <g ref={glowRef} className="premium-gift-glow">
-              <ellipse cx="180" cy="158" rx="92" ry="76" fill={urlFor(ids.glowGradient)} filter={urlFor(ids.softBlur)} />
-              <ellipse cx="180" cy="174" rx="58" ry="25" fill="#ffe9a4" opacity="0.32" />
-            </g>
+          <g className="reference-gift-lid">
+            <rect x="56" y="122" width="288" height="52" rx="3" fill={url(ids.lid)} />
+            <rect x="56" y="122" width="288" height="5" rx="2" fill={url(ids.lidTop)} />
+            <line x1="58" y1="122.6" x2="342" y2="122.6" stroke="oklch(0.9 0.05 40 / 0.35)" />
+            <line x1="57" y1="173" x2="343" y2="173" stroke="oklch(0 0 0 / 0.5)" strokeWidth="1.5" />
+            <rect x="56" y="122" width="288" height="52" rx="3" fill={url(ids.sheen)} />
+            <rect x="185" y="122" width="30" height="52" fill={url(ids.ribbon)} />
+            <rect x="185" y="122" width="30" height="3" fill="oklch(0.95 0.04 88 / 0.6)" />
+          </g>
 
-            <g className="premium-gift-body-layer">
-              <path d="M93 154h174c6 0 11 5 10 11l-13 124c-1 7-6 12-13 12H109c-7 0-12-5-13-12L83 165c-1-6 4-11 10-11Z" fill={urlFor(ids.bodyGradient)} />
-              <path d="M244 154h23c6 0 11 5 10 11l-13 124c-1 7-6 12-13 12h-29c12-43 18-92 22-147Z" fill={urlFor(ids.bodySideGradient)} opacity="0.72" />
-              <path d="M96 164c48 10 116 11 178 0" fill="none" stroke="#f9d3c6" strokeOpacity="0.12" strokeWidth="2" />
-              <path d="M108 208c40 7 99 8 146 0M113 248c38 5 87 6 132 0" fill="none" stroke="#fff1df" strokeOpacity="0.08" strokeWidth="2" />
-              <path ref={specularRef} d="M116 157c17 40 20 91 13 139" fill="none" stroke={urlFor(ids.specularGradient)} strokeWidth="28" strokeLinecap="round" opacity="0.18" />
-            </g>
-
-            <g ref={verticalRibbonRef} className="premium-gift-ribbon premium-gift-ribbon-vertical">
-              <path d="M164 148h33l-2 153h-33l2-153Z" fill={urlFor(ids.ribbonGradient)} />
-              <path d="M169 151h8l-2 148h-8l2-148Z" fill="#fff7d4" opacity="0.28" />
-              <path d="M190 151h5l-2 148h-5l2-148Z" fill="#57310b" opacity="0.22" />
-            </g>
-
-            <g ref={horizontalRibbonRef} className="premium-gift-ribbon premium-gift-ribbon-horizontal">
-              <path d="M88 203h180l-5 33H94l-6-33Z" fill={urlFor(ids.ribbonGradient)} />
-              <path d="M93 207h168" stroke="#fff5cc" strokeOpacity="0.28" strokeWidth="3" strokeLinecap="round" />
-              <rect ref={hoverSweepRef} x="91" y="202" width="36" height="36" fill={urlFor(ids.sweepGradient)} opacity="0" transform="skewX(-16)" />
-            </g>
-
-            <g ref={lidRef} className="premium-gift-lid">
-              <path d="M86 114h188c8 0 14 6 14 14v25c0 8-6 14-14 14H86c-8 0-14-6-14-14v-25c0-8 6-14 14-14Z" fill={urlFor(ids.lidGradient)} />
-              <path d="M84 116c52 12 127 13 196 2" fill="none" stroke="#fff0df" strokeOpacity="0.18" strokeWidth="2" />
-              <path d="M78 158h204" stroke="#230406" strokeOpacity="0.42" strokeWidth="5" strokeLinecap="round" />
-              <g clipPath={urlFor(ids.ribbonClip)}>
-                <path d="M162 110h35v62h-35z" fill={urlFor(ids.ribbonGradient)} />
-                <path d="M170 113h8v55h-8z" fill="#fff7d4" opacity="0.25" />
-              </g>
-            </g>
-
-            <g ref={bowRef} className="premium-gift-bow">
-              <path d="M181 115c-25-25-68-23-78 1-6 15 10 28 30 24 18-4 35-15 48-25Z" fill={urlFor(ids.ribbonGradient)} />
-              <g ref={leftBowRef}>
-                <path d="M177 113c-26-30-67-36-87-17-14 13-6 36 17 43 24 8 53-7 70-26Z" fill={urlFor(ids.ribbonGradient)} />
-                <path d="M160 112c-18-12-38-15-55-7" fill="none" stroke="#fff7d4" strokeOpacity="0.34" strokeWidth="4" strokeLinecap="round" />
-                <path d="M146 129c-18 6-31 6-41 0" fill="none" stroke="#6d4314" strokeOpacity="0.26" strokeWidth="4" strokeLinecap="round" />
-              </g>
-              <g ref={rightBowRef}>
-                <path d="M183 113c26-30 67-36 87-17 14 13 6 36-17 43-24 8-53-7-70-26Z" fill={urlFor(ids.ribbonGradient)} />
-                <path d="M200 112c18-12 38-15 55-7" fill="none" stroke="#fff7d4" strokeOpacity="0.34" strokeWidth="4" strokeLinecap="round" />
-                <path d="M214 129c18 6 31 6 41 0" fill="none" stroke="#6d4314" strokeOpacity="0.26" strokeWidth="4" strokeLinecap="round" />
-              </g>
-              <path d="M151 143c-8 15-18 23-32 32 17 3 31-1 43-9l11-31-22 8Z" fill="#b9852e" opacity="0.95" />
-              <path d="M209 143c8 15 18 23 32 32-17 3-31-1-43-9l-11-31 22 8Z" fill="#b9852e" opacity="0.95" />
-              <g ref={knotRef}>
-                <path d="M160 118c9-12 31-12 40 0 8 10 3 28-20 31-23-3-28-21-20-31Z" fill={urlFor(ids.ribbonGradient)} />
-                <path d="M169 121c7-4 16-4 24 0" fill="none" stroke="#fff7d4" strokeOpacity="0.42" strokeWidth="4" strokeLinecap="round" />
-              </g>
-            </g>
-
-            <g className="premium-gift-highlights">
-              <path d="M98 163c15 8 38 11 70 10" fill="none" stroke="#fff0df" strokeOpacity="0.16" strokeWidth="3" strokeLinecap="round" />
-              <path d="M206 156c22 6 43 6 63 1" fill="none" stroke="#fff0df" strokeOpacity="0.1" strokeWidth="3" strokeLinecap="round" />
-              <path d="M164 204h33" stroke="#fff9d6" strokeOpacity="0.22" strokeWidth="2" />
-            </g>
-
-            <g ref={particleGroupRef} className="premium-gift-particles">
-              {sparkParticles.map((particle, index) => (
-                index % 3 === 0 ? (
-                  <path
-                    key={index}
-                    d={`M${particle.cx} ${particle.cy - 4}l2 3.5 4 .5-3 2.7.8 4-3.8-2-3.7 2 .7-4-3-2.7 4-.5 2-3.5Z`}
-                    fill="#ffe39a"
-                  />
-                ) : (
-                  <circle key={index} cx={particle.cx} cy={particle.cy} r={particle.r} fill="#ffe39a" />
-                )
-              ))}
+          <g className="reference-gift-bow">
+            <path d="M197 120 C 188 140, 172 158, 160 176 L 172 180 C 182 162, 194 144, 201 124 Z" fill={url(ids.ribbonHorizontal)} />
+            <path d="M203 120 C 214 140, 230 156, 244 172 L 233 178 C 220 162, 207 144, 199 124 Z" fill={url(ids.ribbonHorizontal)} opacity="0.92" />
+            <path d="M200 116 C 178 86, 132 82, 128 104 C 125 122, 168 126, 200 118 Z" fill={url(ids.loop)} />
+            <path d="M200 116 C 176 98, 146 96, 142 106 C 160 110, 180 114, 200 118 Z" fill="oklch(0.45 0.06 70 / 0.55)" />
+            <path d="M200 116 C 222 86, 268 82, 272 104 C 275 122, 232 126, 200 118 Z" fill={url(ids.loop)} />
+            <path d="M200 116 C 224 98, 254 96, 258 106 C 240 110, 220 114, 200 118 Z" fill="oklch(0.45 0.06 70 / 0.55)" />
+            <path d="M140 96 C 156 88, 178 94, 192 108" stroke="oklch(0.97 0.03 90 / 0.6)" strokeWidth="1.2" fill="none" />
+            <path d="M260 96 C 244 88, 222 94, 208 108" stroke="oklch(0.97 0.03 90 / 0.45)" strokeWidth="1.2" fill="none" />
+            <rect x="188" y="105" width="24" height="20" rx="6" fill={url(ids.ribbon)} />
+            <rect x="190" y="106" width="20" height="4" rx="2" fill="oklch(0.97 0.03 90 / 0.5)" />
+            <g clipPath={url(ids.ribbonClip)} opacity="0.85">
+              <rect className="gift-satin-highlight" x="-80" y="92" width="44" height="320" fill="oklch(1 0 0 / 0.2)" />
             </g>
           </g>
-        </g>
-      </svg>
+
+          <g className="reference-gift-reveal-light">
+            <ellipse cx="200" cy="166" rx="94" ry="44" fill="oklch(0.86 0.07 85 / 0.35)" />
+            <ellipse cx="200" cy="170" rx="54" ry="20" fill="oklch(0.94 0.03 86 / 0.48)" />
+          </g>
+        </svg>
+      </div>
+      {interactive && <span className="gift-hover-sheen" aria-hidden="true" />}
+      <div className="gift-sparkles" aria-hidden="true">
+        {[0, 1, 2, 3].map((index) => <span key={index} />)}
+      </div>
     </div>
   );
 }
