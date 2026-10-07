@@ -13,3 +13,6 @@ public class TheSecretSantaApplication {
     }
 
 }
+//cd D:\SpringProjects\TheSecretSanta\frontend
+//npm.cmd install
+//npm.cmd run dev
