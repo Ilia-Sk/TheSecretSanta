@@ -51,13 +51,13 @@ export function CreateRoomModal({
     <Modal title="Новая комната" description="Настройте атмосферу обмена: название, дату, бюджет и свои пожелания." onClose={onClose} size="wide">
       <form className="create-room-form" onSubmit={submit}>
         <section className="form-block">
-          <div className="form-block-title"><ScrollText size={18} /><span>Детали</span></div>
+          <div className="form-block-title"><span className="step-dot">1</span><ScrollText size={17} /><span>Детали</span></div>
           <Field label="Название" name="name" maxLength={140} placeholder="Новогодний обмен 2026" required />
           <TextAreaField label="Описание" name="description" maxLength={800} placeholder="Формат обмена, место встречи или настроение праздника" />
         </section>
 
         <section className="form-block">
-          <div className="form-block-title"><CalendarDays size={18} /><span>Параметры обмена</span></div>
+          <div className="form-block-title"><span className="step-dot">2</span><CalendarDays size={17} /><span>Параметры обмена</span></div>
           <div className="form-two">
             <Field label="Дата праздника" name="celebrationDate" type="date" min={todayDateInputValue()} />
             <Field label="Бюджет подарка" name="giftBudget" type="number" min="0" step="100" placeholder="3000" />
@@ -65,7 +65,7 @@ export function CreateRoomModal({
         </section>
 
         <section className="form-block form-block-accent">
-          <div className="form-block-title"><WalletCards size={18} /><span>Ваши пожелания</span></div>
+          <div className="form-block-title"><span className="step-dot">3</span><WalletCards size={17} /><span>Ваши пожелания</span></div>
           <TextAreaField label="Пожелания" name="wishlist" maxLength={1000} placeholder="Книги, кофе, сертификат, настольная игра..." />
           <TextAreaField label="Ссылки" name="wishlistLinks" maxLength={1500} placeholder="Одна ссылка на строку" />
         </section>
@@ -78,7 +78,7 @@ export function CreateRoomModal({
           </Button>
         </div>
 
-        <div className="form-footnote"><Sparkles size={15} /> После создания можно будет скопировать элегантное приглашение.</div>
+        <div className="form-footnote"><Sparkles size={15} /> После создания можно будет скопировать приглашение.</div>
       </form>
     </Modal>
   );

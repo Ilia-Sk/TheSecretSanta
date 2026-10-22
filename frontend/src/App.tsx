@@ -161,7 +161,7 @@ export function App() {
     setView('room');
   }
 
-  if (!auth) {
+  if (!auth || window.location.pathname === '/reset-password') {
     return (
       <>
         <AuthPage onAuth={saveAuth} onToast={showToast} invitePending={Boolean(inviteCode)} />

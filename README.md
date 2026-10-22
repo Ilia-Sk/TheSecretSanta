@@ -68,6 +68,8 @@ Frontend URL:
 http://localhost:5173
 ```
 
+Vite refreshes frontend changes in the browser automatically. Keep the Spring Boot and Vite processes running in separate terminals; frontend edits do not require restarting the backend.
+
 ## Local Database
 
 The default local database settings are in `src/main/resources/application.yml`.
