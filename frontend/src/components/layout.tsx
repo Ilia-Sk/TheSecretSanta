@@ -15,9 +15,9 @@ export function BrandMark({ size = 18 }: { size?: number }) {
 }
 
 // Room creation lives in the single «Создать» button (and the mobile menu).
+// The profile is opened via the avatar button, so it is not a separate nav link.
 const navItems: Array<{ id: 'dashboard' | 'profile'; label: string }> = [
-  { id: 'dashboard', label: 'Комнаты' },
-  { id: 'profile', label: 'Профиль' }
+  { id: 'dashboard', label: 'Комнаты' }
 ];
 
 export function AppLayout({
@@ -120,7 +120,7 @@ export function AppLayout({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98, transition: { duration: 0.15 } }}
           >
-            {[...navItems.map((item) => ({ label: item.label, action: handlers[item.id] })), { label: 'Создать комнату', action: onCreate }, { label: 'Выйти', action: onLogout }].map((item, index) => (
+            {[...navItems.map((item) => ({ label: item.label, action: handlers[item.id] })), { label: 'Профиль', action: onProfile }, { label: 'Создать комнату', action: onCreate }, { label: 'Выйти', action: onLogout }].map((item, index) => (
               <motion.button
                 key={item.label}
                 type="button"
