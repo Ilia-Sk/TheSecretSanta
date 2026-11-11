@@ -44,3 +44,5 @@ out/
 ### VS Code ###
 .vscode/
 /design-reference/
+*.local
+.env.local

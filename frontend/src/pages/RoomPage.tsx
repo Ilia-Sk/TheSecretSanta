@@ -1,8 +1,8 @@
 import {
+  ArrowLeft,
   ArrowRight,
   Ban,
   CalendarDays,
-  ChevronRight,
   Check,
   Copy,
   Gift,
@@ -23,9 +23,10 @@ import { request } from '../api';
 import { ParticipantCard } from '../components/ParticipantCard';
 import { StatusBadge } from '../components/RoomCard';
 import { AnimatePresence, motion } from 'motion/react';
-import { BorderBeam, Dock, DockIcon, NumberTicker } from '../components/magicui';
+import { NumberTicker } from '../components/magicui';
 import { Avatar, Button, Card, ConfirmDialog, Field, IconButton, Modal, SectionTitle, TextAreaField } from '../components/ui';
-import { BackgroundPaths } from '../components/twentyfirst';
+import { DatePicker } from '../components/DatePicker';
+import { Snowfall } from '../components/Snowfall';
 import { CubeGift, Gift3D, GiftPile, ProductShelf, toneForStatus, type GiftTone } from '../components/visual';
 import { useHeroDepth } from '../hooks/motion';
 import { formatBudget, formatDate, safeExternalHref, splitLinks, statusHints, todayDateInputValue } from '../utils';
@@ -49,8 +50,10 @@ export function RoomPage({
   assignment,
   onChanged,
   onDeleted,
-  onToast
+  onToast,
+  onBack
 }: {
+  onBack: () => void;
   room: Room;
   token: string;
   currentUserId: number;
@@ -260,11 +263,6 @@ export function RoomPage({
   }
 
   const tone = toneForStatus(room.status);
-  const primaryAction = isOwner && room.status === 'OPEN'
-    ? { label: 'Провести жеребьевку', short: 'Жеребьевка', icon: Shuffle, onClick: () => setConfirmDraw(true) }
-    : room.status === 'DRAWN' && assignment
-      ? { label: 'Открыть подарок', short: 'Открыть подарок', icon: Gift, onClick: () => setShowAssignment(true) }
-      : null;
   const tabIndex = visibleTabs.findIndex((tab) => tab.id === activeTab);
   const previousTabIndex = useRef(tabIndex);
   const direction = tabIndex >= previousTabIndex.current ? 1 : -1;
@@ -275,25 +273,50 @@ export function RoomPage({
   function selectTab(tab: RoomTab) {
     setActiveTab(tab);
     const anchor = document.getElementById('room-content');
-    if (anchor && anchor.getBoundingClientRect().top < 100) {
-      window.scrollTo({ top: anchor.getBoundingClientRect().top + window.scrollY - 120, behavior: 'smooth' });
+    if (anchor && anchor.getBoundingClientRect().top < 160) {
+      window.scrollTo({ top: anchor.getBoundingClientRect().top + window.scrollY - 150, behavior: 'smooth' });
     }
   }
 
   return (
     <div className="page room-page">
-      <nav className="local-nav" aria-label="Комната">
-        <div className="local-nav-inner glass">
-          <span className={`status-dot status-${room.status.toLowerCase()}`} aria-hidden="true" />
-          <strong className="local-title">{room.name}</strong>
-          <span className="local-section">{visibleTabs[tabIndex]?.label}</span>
-          {primaryAction && (
-            <motion.button type="button" className="nav-cta local-cta" onClick={primaryAction.onClick} whileTap={{ scale: 0.94 }}>
-              {primaryAction.short}
-            </motion.button>
-          )}
+      {/* Room bar (Navbar Gallery style): a way back, where you are, and the sections. */}
+      <div className="room-bar">
+        <div className="room-bar-inner">
+          <button type="button" className="btn btn-secondary back-link" onClick={onBack}>
+            <span className="btn-content">
+              <ArrowLeft size={17} />
+              <span className="back-link-label">Комнаты</span>
+            </span>
+          </button>
+          <span className="room-bar-title" title={room.name}>
+            <span className={`status-dot status-${room.status.toLowerCase()}`} aria-hidden="true" />
+            <span className="room-bar-name">{room.name}</span>
+          </span>
+          <div className="segmented" role="tablist" aria-label="Разделы комнаты">
+            {visibleTabs.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  id={`room-tab-trigger-${tab.id}`}
+                  aria-controls={`room-tab-panel-${tab.id}`}
+                  aria-selected={active}
+                  className={`segmented-item ${active ? 'is-active' : ''}`}
+                  onClick={() => selectTab(tab.id)}
+                >
+                  {active && <motion.span layoutId="room-tab-pill" className="segmented-pill" transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
+                  <Icon size={16} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </nav>
+      </div>
 
       <motion.section
         className={`room-hero dark-section tone-${tone}`}
@@ -302,7 +325,7 @@ export function RoomPage({
         transition={{ type: 'spring', stiffness: 170, damping: 26 }}
       >
         <div className="hero-aurora" aria-hidden="true" />
-        <BackgroundPaths className="room-paths" count={36} angle={-6} speed={0.6} />
+        <Snowfall density={0.7} />
         <motion.div
           className="room-hero-copy"
           initial={{ opacity: 0, y: 30 }}
@@ -319,20 +342,17 @@ export function RoomPage({
           </div>
           <div className="room-hero-actions">
             {isOwner && room.status === 'OPEN' && (
-              <Button type="button" variant="metal" onClick={() => setConfirmDraw(true)}>
+              <Button type="button" variant="accent" onClick={() => setConfirmDraw(true)}>
                 <Shuffle size={18} />
                 Провести жеребьевку
               </Button>
             )}
             {room.status === 'DRAWN' && assignment && (
-              <Button type="button" variant="metal" onClick={() => setShowAssignment(true)}>
+              <Button type="button" variant="accent" onClick={() => setShowAssignment(true)}>
                 <Gift size={18} />
                 Открыть подарок
               </Button>
             )}
-            <button type="button" className="link-arrow link-arrow-light" onClick={() => selectTab('participants')}>
-              Участники <ChevronRight size={15} />
-            </button>
           </div>
         </motion.div>
         <motion.div className="room-hero-visual" style={giftDepth}>
@@ -376,12 +396,11 @@ export function RoomPage({
 
             {activeTab === 'participants' && (
               <div className="participants-section">
-                <SectionTitle eyebrow="Состав комнаты" title="Участники." text="Карточки показывают владельца комнаты и заполненность пожеланий." />
+                <SectionTitle title="Участники." />
                 <Card className="pile-card tile-dark" tilt={false}>
                   <GiftPile
                     count={Math.min(Math.max(room.participants.length, 3), 20)}
                     width={14}
-                    hint="Один подарок — один участник. Хватайте, бросайте, кликайте"
                   />
                 </Card>
                 <div className="participants-grid">
@@ -430,25 +449,7 @@ export function RoomPage({
         </AnimatePresence>
       </div>
 
-      {createPortal(<div className="dock-wrap">
-        <Dock label="Разделы комнаты">
-          {visibleTabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <DockIcon
-                key={tab.id}
-                id={`room-tab-trigger-${tab.id}`}
-                controls={`room-tab-panel-${tab.id}`}
-                label={tab.label}
-                active={activeTab === tab.id}
-                onClick={() => selectTab(tab.id)}
-              >
-                <Icon size={19} />
-              </DockIcon>
-            );
-          })}
-        </Dock>
-      </div>, document.body)}
+
 
       {createPortal(<AnimatePresence>
         {drawFocus && (
@@ -461,7 +462,7 @@ export function RoomPage({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.4 } }}
           >
-            <BackgroundPaths className="draw-paths" count={54} angle={0} speed={drawPhase === 'requesting' ? 2.2 : 1} interactive={false} />
+            <Snowfall density={1.1} />
             <GiftPile className="draw-pile" count={Math.min(Math.max(room.participants.length, 4), 18)} width={22} maxGifts={20} interactive={false} />
             <motion.div
               className="draw-rays"
@@ -484,7 +485,6 @@ export function RoomPage({
                   onRevealComplete={finishDrawAnimation}
                 />
               </motion.div>
-              <span className="eyebrow eyebrow-warm">Жеребьевка</span>
               <AnimatePresence mode="wait">
                 <motion.div
                   key={drawPhase}
@@ -581,22 +581,16 @@ function OverviewSection({
   return (
     <div className="overview-grid">
       <Card className="overview-card tile-dark tile-span-2">
-        <span className="eyebrow">Состояние</span>
         <h2>{statusHints[room.status]}</h2>
         <CubeGift size={64} tone={toneForStatus(room.status)} open={room.status === 'DRAWN'} className="overview-cube" />
       </Card>
 
       <Card className={`assignment-card tile-span-2 ${room.status === 'DRAWN' && assignment ? 'is-ready' : ''}`} delay={0.08}>
-        {room.status === 'DRAWN' && assignment && <BorderBeam size={150} duration={7} />}
-        <span className="eyebrow">Получатель</span>
+        <span className="card-label">Получатель</span>
         {room.status === 'DRAWN' && assignment ? (
           <>
             <h2>Ваш получатель определен</h2>
-            <p>Получатель скрыт до момента открытия подарка.</p>
-            <Button type="button" variant="accent" onClick={onOpenAssignment}>
-              <Gift size={17} />
-              Открыть подарок
-            </Button>
+            <p>Нажмите «Открыть подарок» в начале страницы — имя появится только у вас.</p>
           </>
         ) : (
           <>
@@ -623,13 +617,13 @@ function OverviewSection({
           <p>Скопируйте ссылку и отправьте ее участникам.</p>
         </div>
         <div className="invite-actions">
-          <Button type="button" variant={copied ? 'secondary' : 'primary'} onClick={onCopyInvite}>
+          <Button type="button" variant={copied ? 'secondary' : 'accent'} onClick={onCopyInvite}>
             {copied ? <Check size={17} /> : <Copy size={17} />}
             {copied ? 'Скопировано' : 'Скопировать приглашение'}
           </Button>
-          <button className="text-link" type="button" onClick={onToggleInvite}>
+          <Button type="button" variant="secondary" onClick={onToggleInvite}>
             {showInviteLink ? 'Скрыть ссылку' : 'Показать ссылку'}
-          </button>
+          </Button>
         </div>
         {showInviteLink && <a href={inviteLink} className="invite-link">{inviteLink}</a>}
       </Card>
@@ -662,7 +656,7 @@ function WishlistSection({
   return (
     <div className="wishlist-layout">
       <Card className="wishlist-board">
-        <span className="eyebrow">Ваш список подарков</span>
+        <span className="card-label">Ваш список подарков</span>
         <h2>{currentParticipant.wishlist || 'Пожелания пока не заполнены'}</h2>
         {links.length > 0 ? (
           <ProductShelf links={links} toHref={safeExternalHref} />
@@ -757,7 +751,6 @@ function RestrictionsSection({
     <div className="restrictions-layout">
       <div className="section-title">
         <div>
-          <span className="eyebrow">Правила жеребьевки</span>
           <h2>Кто не может дарить кому</h2>
           <p>Настройте исключения перед жеребьевкой.</p>
         </div>
@@ -871,7 +864,7 @@ function SettingsSection({
             <Field label="Название" name="name" maxLength={140} defaultValue={room.name} required />
             <TextAreaField label="Описание" name="description" maxLength={800} defaultValue={room.description ?? ''} />
             <div className="form-two">
-              <Field label="Дата праздника" name="celebrationDate" type="date" min={todayDateInputValue()} defaultValue={room.celebrationDate ?? ''} />
+              <DatePicker label="Дата праздника" name="celebrationDate" min={todayDateInputValue()} defaultValue={room.celebrationDate ?? ''} />
               <Field label="Бюджет" name="giftBudget" type="number" min="0" step="100" defaultValue={room.giftBudget ?? ''} />
             </div>
             <Button type="submit" loading={busy === 'room'}>Сохранить изменения</Button>
@@ -886,7 +879,6 @@ function SettingsSection({
 
       {isOwner && (
         <Card className="danger-zone">
-          <span className="eyebrow">Опасная зона</span>
           <h2>Удаление комнаты</h2>
           <p>Это действие удалит участников, пожелания и ограничения комнаты без восстановления.</p>
           <Button type="button" variant="danger" onClick={onDeleteRoom}>
@@ -927,7 +919,6 @@ function AssignmentReveal({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
             >
-              <span className="eyebrow eyebrow-warm">Назначение готово</span>
               <h2>Откройте подарок</h2>
               <p>Получатель появится после короткого открытия.</p>
               <Button type="button" variant="accent" onClick={() => setRevealed(true)}>
@@ -946,7 +937,7 @@ function AssignmentReveal({
               <motion.div variants={revealItem}>
                 <Avatar name={assignment.receiverName} avatarUrl={assignment.receiverAvatarUrl} size="xl" />
               </motion.div>
-              <motion.span variants={revealItem} className="eyebrow eyebrow-warm">Вам выпал</motion.span>
+              <motion.span variants={revealItem} className="card-label card-label-warm">Вам выпал</motion.span>
               <h2 className="assignment-name" aria-label={assignment.receiverName}>
                 {Array.from(assignment.receiverName).map((char, index) => (
                   <motion.span

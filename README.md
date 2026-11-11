@@ -124,6 +124,31 @@ npm run typecheck
 npm run build
 ```
 
+## Sign-in with Clerk
+
+Sign-in and sign-up go through [Clerk](https://clerk.com): email + password (the email is confirmed with a code) and Google. The backend checks the Clerk session and issues its own JWT, so the rest of the API is unchanged.
+
+1. Create an application at dashboard.clerk.com.
+2. In **User & authentication** enable **Email address** (verify with an email code), **Password** and **Google**.
+3. Copy the keys from **API keys**:
+   - `frontend/.env.local` (not committed):
+     ```env
+     VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+     ```
+   - backend: a `.env` file in the project root (not committed, read automatically on start):
+     ```env
+     CLERK_SECRET_KEY=sk_test_...
+     ```
+     or an environment variable (IntelliJ Run configuration → Environment variables, or PowerShell):
+     ```powershell
+     $env:CLERK_SECRET_KEY="sk_test_..."
+     .\mvnw.cmd spring-boot:run
+     ```
+   - optional: `CLERK_AUTHORIZED_PARTIES=http://localhost:5173` restricts which site may use the tokens.
+4. Restart `npm run dev` after editing `.env.local`.
+
+Never commit the secret key. Without the keys the site still opens and shows "Вход не настроен" instead of the sign-in form.
+
 ## Email Setup
 
 Email is optional locally. If SMTP settings are empty, the application starts and logs skipped email sends.

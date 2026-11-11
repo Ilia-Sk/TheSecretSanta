@@ -2,6 +2,7 @@ package org.example.thesecretsanta.auth.web;
 
 import jakarta.validation.Valid;
 import org.example.thesecretsanta.auth.dto.AuthResponse;
+import org.example.thesecretsanta.auth.dto.ClerkSignInRequest;
 import org.example.thesecretsanta.auth.dto.ForgotPasswordRequest;
 import org.example.thesecretsanta.auth.dto.LoginRequest;
 import org.example.thesecretsanta.auth.dto.RegisterRequest;
@@ -10,6 +11,7 @@ import org.example.thesecretsanta.auth.service.AuthService;
 import org.example.thesecretsanta.common.dto.MessageResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,6 +22,16 @@ public class AuthController {
 
     public AuthController(AuthService authService) {
         this.authService = authService;
+    }
+
+    /** Sign-in through Clerk: Authorization: Bearer &lt;Clerk session token&gt; → the app's JWT. */
+    @PostMapping("/clerk")
+    public AuthResponse clerk(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @Valid @RequestBody(required = false) ClerkSignInRequest request
+    ) {
+        String token = authorization != null && authorization.startsWith("Bearer ") ? authorization.substring(7).trim() : null;
+        return authService.signInWithClerk(token, request);
     }
 
     @PostMapping("/register")

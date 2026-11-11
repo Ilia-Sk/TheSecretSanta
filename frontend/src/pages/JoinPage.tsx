@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Ticket } from 'lucide-react';
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
-import { BorderBeam } from '../components/magicui';
 import { CubeGift } from '../components/visual';
 import type { InvitePreview, Room } from '../api';
 import { request } from '../api';
@@ -91,10 +90,9 @@ export function JoinPage({
               animate={{ opacity: 1, y: 0 }}
               transition={{ type: 'spring', stiffness: 110, damping: 16 }}
             >
-              <BorderBeam size={120} duration={7} colorFrom="#fff4d6" colorTo="#f5c66b" />
               <span className="join-ticket-holo" aria-hidden="true" />
               <div className="join-ticket-top">
-                <span className="eyebrow"><Ticket size={15} /> Приглашение</span>
+                <span className="card-label"><Ticket size={15} /> Приглашение</span>
                 <CubeGift size={58} />
               </div>
               <h1>{preview ? preview.name : 'Приглашение в комнату'}</h1>
@@ -104,7 +102,6 @@ export function JoinPage({
           </div>
 
           <Card className="join-card" tilt={false} delay={0.15}>
-            <span className="eyebrow">Присоединение</span>
             <h2>{preview ? `Присоединиться к "${preview.name}"` : 'Приглашение в комнату'}</h2>
             {!preview && <p>Приглашение недействительно или комната больше недоступна.</p>}
             {preview && preview.status === 'OPEN' ? (
@@ -112,8 +109,8 @@ export function JoinPage({
                 <TextAreaField label="Пожелания" name="wishlist" maxLength={1000} placeholder="Что вы хотели бы получить?" />
                 <TextAreaField label="Ссылки" name="wishlistLinks" maxLength={1500} placeholder="Одна ссылка на строку" />
                 <div className="form-actions">
-                  <Button type="button" variant="ghost" onClick={onCancel}>Отмена</Button>
-                  <Button type="submit" loading={joining}>Войти в комнату</Button>
+                  <Button type="button" variant="secondary" onClick={onCancel}>Отмена</Button>
+                  <Button type="submit" variant="accent" loading={joining}>Войти в комнату</Button>
                 </div>
               </form>
             ) : (

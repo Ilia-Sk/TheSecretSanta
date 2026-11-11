@@ -63,6 +63,14 @@ export type InvitePreview = {
   status: 'OPEN' | 'DRAWN' | 'CLOSED';
 };
 
+/** API error with the HTTP status and, for some errors, a machine-readable code (e.g. LOGIN_REQUIRED). */
+export class ApiRequestError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 const defaultApiUrl = `${window.location.origin}/api`;
 const API_URL = import.meta.env.VITE_API_URL ?? defaultApiUrl;
 
@@ -78,7 +86,7 @@ export async function request<T>(path: string, options: RequestInit = {}, token?
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.message ?? 'Request failed');
+    throw new ApiRequestError(payload?.message ?? 'Request failed', response.status, payload?.code);
   }
 
   if (response.status === 204) {

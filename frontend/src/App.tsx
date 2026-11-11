@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import type { AuthResponse, MyAssignment, Profile, Room } from './api';
 import { request } from './api';
+import { clerkEnabled, signOutOfClerk, SSO_CALLBACK_PATH } from './auth/clerk';
+import { SsoCallback } from './auth/SsoCallback';
 import { AppLayout } from './components/layout';
 import { Toasts } from './components/ui';
 import { AuthPage } from './pages/AuthPage';
@@ -35,6 +38,23 @@ export function App() {
       sessionStorage.removeItem('secret-santa-pending-invite');
     }
   }, [inviteCode]);
+
+  useEffect(() => {
+    const onPop = (event: PopStateEvent) => {
+      const state = event.state as { view?: string; roomId?: number } | null;
+      if (state?.view === 'room' && typeof state.roomId === 'number') {
+        setSelectedRoomId(state.roomId);
+        setView('room');
+      } else if (state?.view === 'profile') {
+        setView('profile');
+      } else {
+        setView('dashboard');
+      }
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const selectedRoom = useMemo(
     () => joinedRoom?.id === selectedRoomId
@@ -145,23 +165,66 @@ export function App() {
     });
   }
 
-  function logout() {
+  const [signingOut, setSigningOut] = useState(false);
+
+  // Sign-out: our session goes first, then Clerk's (which may reload to "/").
+  // Meanwhile a calm full-screen state — never the sign-in page racing a
+  // still-active Clerk session.
+  async function logout() {
+    setSigningOut(true);
+    sessionStorage.removeItem('secret-santa-auth');
+    window.history.replaceState({}, '', '/');
+    await signOutOfClerk();
     setAuth(null);
     setProfile(null);
     setRooms([]);
     setSelectedRoomId(null);
     setAssignment(null);
     setView(inviteCode ? 'join' : 'dashboard');
-    sessionStorage.removeItem('secret-santa-auth');
+    setSigningOut(false);
     showToast('info', 'Вы вышли из аккаунта');
   }
 
+  // Every inner screen gets a history entry, so both our «Назад» buttons and the
+  // browser's Back button return to the rooms list.
   function openRoom(roomId: number) {
     setSelectedRoomId(roomId);
     setView('room');
+    window.history.pushState({ view: 'room', roomId }, '');
+    window.scrollTo(0, 0);
   }
 
-  if (!auth || window.location.pathname === '/reset-password') {
+  function openProfile() {
+    if (view === 'profile') return;
+    setView('profile');
+    window.history.pushState({ view: 'profile' }, '');
+    window.scrollTo(0, 0);
+  }
+
+  function goHome() {
+    const state = window.history.state as { view?: string } | null;
+    if (state?.view) {
+      window.history.back();
+      return;
+    }
+    setView('dashboard');
+    window.scrollTo(0, 0);
+  }
+
+  if (signingOut) {
+    return (
+      <div className="signout-screen" role="status">
+        <Loader2 className="spin" aria-hidden="true" />
+        Выходим из аккаунта…
+      </div>
+    );
+  }
+
+  if (window.location.pathname === SSO_CALLBACK_PATH) {
+    return clerkEnabled ? <SsoCallback /> : null;
+  }
+
+  if (!auth) {
     return (
       <>
         <AuthPage onAuth={saveAuth} onToast={showToast} invitePending={Boolean(inviteCode)} />
@@ -184,10 +247,8 @@ export function App() {
       <AppLayout
         profile={visibleProfile}
         activeView={view}
-        onDashboard={() => setView('dashboard')}
-        onCreate={() => setCreateOpen(true)}
-        onProfile={() => setView('profile')}
-        onLogout={logout}
+        onDashboard={goHome}
+        onProfile={openProfile}
       >
         {view === 'join' && inviteCode ? (
           <JoinPage
@@ -203,6 +264,7 @@ export function App() {
               setJoinedRoom(room);
               setSelectedRoomId(room.id);
               setView('room');
+              window.history.pushState({ view: 'room', roomId: room.id }, '');
             }}
             onCancel={() => {
               window.history.replaceState({}, '', '/');
@@ -216,6 +278,8 @@ export function App() {
             profile={visibleProfile}
             onSaved={updateStoredAuth}
             onToast={showToast}
+            onLogout={logout}
+            onBack={goHome}
           />
         ) : view === 'room' && selectedRoom ? (
           <RoomPage
@@ -228,9 +292,11 @@ export function App() {
               setRooms((current) => current.filter((room) => room.id !== roomId));
               setSelectedRoomId(null);
               setAssignment(null);
+              window.history.replaceState({}, '');
               setView('dashboard');
             }}
             onToast={showToast}
+            onBack={goHome}
           />
         ) : (
           <DashboardPage

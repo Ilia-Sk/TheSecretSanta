@@ -1,4 +1,4 @@
-import { Camera, KeyRound, Mail, Save, UserRound } from 'lucide-react';
+import { ArrowLeft, Camera, KeyRound, LogOut, Mail, Save, UserRound } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import type { Profile } from '../api';
 import { request, uploadFile } from '../api';
@@ -9,12 +9,16 @@ export function ProfilePage({
   token,
   profile,
   onSaved,
-  onToast
+  onToast,
+  onLogout,
+  onBack
 }: {
+  onBack: () => void;
   token: string;
   profile: Profile;
   onSaved: (profile: Profile) => void;
   onToast: (type: 'success' | 'error' | 'info', message: string) => void;
+  onLogout: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -81,6 +85,14 @@ export function ProfilePage({
 
   return (
     <div className="page profile-page">
+      <div className="page-back">
+        <button type="button" className="btn btn-secondary back-link" onClick={onBack}>
+          <span className="btn-content">
+            <ArrowLeft size={17} />
+            <span className="back-link-label">Комнаты</span>
+          </span>
+        </button>
+      </div>
       <motion.section
         className="profile-hero"
         initial="hidden"
@@ -89,9 +101,9 @@ export function ProfilePage({
       >
         <motion.div
           className="avatar-uploader"
-          variants={{ hidden: { opacity: 0, scale: 0.6, rotateY: 90 }, show: { opacity: 1, scale: 1, rotateY: 0, transition: { type: 'spring', stiffness: 180, damping: 16 } } }}
+          variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } } }}
         >
-          <motion.div className="avatar-ring" whileHover={{ scale: 1.04, rotate: 4 }} transition={{ type: 'spring', stiffness: 300, damping: 18 }}>
+          <motion.div className="avatar-ring">
             <Avatar name={profile.displayName} avatarUrl={visibleAvatar} size="xl" />
           </motion.div>
           <label className={uploading ? 'avatar-upload-button is-loading' : 'avatar-upload-button'}>
@@ -105,7 +117,6 @@ export function ProfilePage({
             />
           </label>
         </motion.div>
-        <motion.span variants={heroItem} className="eyebrow"><UserRound size={14} /> Профиль</motion.span>
         <motion.h1 variants={heroItem}>{profile.displayName}</motion.h1>
         <motion.p variants={heroItem}><Mail size={16} />{profile.email}</motion.p>
       </motion.section>
@@ -113,11 +124,15 @@ export function ProfilePage({
       <div className="profile-grid">
         <Card className="profile-card">
           <span className="tile-icon"><KeyRound size={18} /></span>
-          <h2>Данные аккаунта</h2>
+          <h2>Аккаунт</h2>
           <dl className="profile-list">
             <div><dt>Логин</dt><dd>{profile.login}</dd></div>
             <div><dt>Email</dt><dd>{profile.email}</dd></div>
           </dl>
+          <Button type="button" variant="secondary" className="profile-logout" onClick={onLogout}>
+            <LogOut size={17} />
+            Выйти из аккаунта
+          </Button>
         </Card>
 
         <Card className="profile-card" delay={0.08}>

@@ -12,20 +12,24 @@ import { createPortal } from 'react-dom';
 import type { ButtonHTMLAttributes, CSSProperties, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react';
 import type { ToastMessage } from '../types';
 import { getInitials } from '../utils';
-import { BlurFade, ShimmerButton } from './magicui';
-import { LiquidButton, MetalButton } from './twentyfirst';
+import { BlurFade } from './magicui';
 import { CubeGift } from './visual';
 import { pushOverlay } from '../hooks/overlay';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'light' | 'metal' | 'glass';
+/**
+ * One button for the whole site. Variants only change colours; every button has
+ * the same motion (styles.css → .btn): a slight lift on hover, an even press.
+ *  - accent    gold, the main action on a screen
+ *  - primary   dark ink
+ *  - secondary soft grey
+ *  - ghost     text-only
+ *  - danger    destructive
+ *  - light     white, for dark sections
+ *  - outline   transparent with a light border, for dark sections
+ */
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'light' | 'outline';
 
-type NativeButtonProps = Omit<
-  ButtonHTMLAttributes<HTMLButtonElement>,
-  'onDrag' | 'onDragStart' | 'onDragEnd' | 'onDragOver' | 'onAnimationStart' | 'onAnimationEnd' | 'onAnimationIteration'
->;
-
-const tap = { scale: 0.96 };
-const press = { type: 'spring', stiffness: 500, damping: 30 } as const;
+type NativeButtonProps = ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function Button({
   children,
@@ -33,53 +37,25 @@ export function Button({
   loading = false,
   className = '',
   disabled,
+  type = 'button',
   ...props
 }: NativeButtonProps & {
   variant?: ButtonVariant;
   loading?: boolean;
 }) {
-  const content = (
-    <span className="btn-content">
-      {loading && <Loader2 className="spin" size={17} aria-hidden="true" />}
-      {children}
-    </span>
-  );
-
-  if (variant === 'metal') {
-    return (
-      <MetalButton {...props} variant="gold" disabled={disabled || loading} aria-busy={loading || undefined} className={className}>
-        {content}
-      </MetalButton>
-    );
-  }
-
-  if (variant === 'glass') {
-    return (
-      <LiquidButton {...props} disabled={disabled || loading} aria-busy={loading || undefined} className={className}>
-        {content}
-      </LiquidButton>
-    );
-  }
-
-  if (variant === 'accent') {
-    return (
-      <ShimmerButton {...props} loading={loading} disabled={disabled} className={`btn btn-accent ${className}`.trim()}>
-        {content}
-      </ShimmerButton>
-    );
-  }
-
   return (
-    <motion.button
+    <button
       {...props}
+      type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={`btn btn-${variant} ${className}`.trim()}
-      whileTap={disabled || loading ? undefined : tap}
-      transition={press}
     >
-      {content}
-    </motion.button>
+      <span className="btn-content">
+        {loading && <Loader2 className="spin" size={17} aria-hidden="true" />}
+        {children}
+      </span>
+    </button>
   );
 }
 
@@ -93,17 +69,15 @@ export function IconButton({
   children: ReactNode;
 }) {
   return (
-    <motion.button
+    <button
       type="button"
       {...props}
       aria-label={label}
       title={label}
       className={`icon-btn ${className}`.trim()}
-      whileTap={{ scale: 0.9 }}
-      transition={press}
     >
       {children}
-    </motion.button>
+    </button>
   );
 }
 
@@ -111,15 +85,25 @@ export function Field({
   label,
   hint,
   className = '',
+  trailing,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & {
   label: string;
   hint?: string;
+  /** Element inside the input on the right (e.g. the show-password button). */
+  trailing?: ReactNode;
 }) {
   return (
     <label className={`field ${className}`.trim()}>
       <span className="field-label">{label}</span>
-      <input {...props} />
+      {trailing ? (
+        <span className="field-control">
+          <input {...props} />
+          {trailing}
+        </span>
+      ) : (
+        <input {...props} />
+      )}
       {hint && <small>{hint}</small>}
     </label>
   );
@@ -144,14 +128,13 @@ export function TextAreaField({
 }
 
 /**
- * Tile with spring-driven 3D tilt (Motion), a cursor-following gradient border
- * (Magic UI "MagicCard" technique) and an in-view blur-fade reveal.
+ * Content tile. Calm on purpose: no tilt, no lift, no cursor effects — cards
+ * people click often must stay put. Only a one-time fade-up when scrolled into view.
  */
 export function Card({
   children,
   className = '',
   style,
-  tilt = true,
   reveal = true,
   delay = 0,
   layoutId
@@ -159,6 +142,7 @@ export function Card({
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
+  /** @deprecated kept for old call sites; cards never tilt now. */
   tilt?: boolean;
   reveal?: boolean;
   delay?: number;
@@ -166,58 +150,16 @@ export function Card({
   layoutId?: string;
 }) {
   const reduced = useReducedMotion();
-  const px = useMotionValue(0.5);
-  const py = useMotionValue(0.5);
-  const mx = useMotionValue(-400);
-  const my = useMotionValue(-400);
-  const springConfig = { stiffness: 180, damping: 20, mass: 0.6 };
-  const rotateX = useSpring(useTransform(py, [0, 1], [6, -6]), springConfig);
-  const rotateY = useSpring(useTransform(px, [0, 1], [-8, 8]), springConfig);
-  const enableTilt = tilt && !reduced;
-  // Measured on enter, not on every move: the card's own tilt would skew the
-  // reading, and layout reads per pointer event add up.
-  const rectRef = useRef<DOMRect | null>(null);
-
   return (
     <motion.section
       layoutId={layoutId}
-      className={`card ${tilt ? 'tilt-card' : ''} ${className}`.trim()}
-      style={enableTilt ? { ...style, rotateX, rotateY, transformPerspective: 1100 } : style}
-      initial={reveal && !reduced ? { opacity: 0, y: 36 } : false}
+      className={`card ${className}`.trim()}
+      style={style}
+      initial={reveal && !reduced ? { opacity: 0, y: 24 } : false}
       whileInView={reveal ? { opacity: 1, y: 0 } : undefined}
       viewport={{ once: true, margin: '-40px' }}
-      transition={{ duration: 0.8, delay, ease: [0.16, 1, 0.3, 1] }}
-      whileHover={enableTilt ? { y: -4 } : undefined}
-      onPointerEnter={(event) => {
-        rectRef.current = event.currentTarget.getBoundingClientRect();
-      }}
-      onPointerMove={(event) => {
-        if (event.pointerType !== 'mouse') return;
-        const rect = rectRef.current ?? (rectRef.current = event.currentTarget.getBoundingClientRect());
-        mx.set(event.clientX - rect.left);
-        my.set(event.clientY - rect.top);
-        px.set((event.clientX - rect.left) / rect.width);
-        py.set((event.clientY - rect.top) / rect.height);
-      }}
-      onPointerLeave={() => {
-        rectRef.current = null;
-        px.set(0.5);
-        py.set(0.5);
-        mx.set(-400);
-        my.set(-400);
-      }}
+      transition={{ duration: 0.6, delay, ease: [0.16, 1, 0.3, 1] }}
     >
-      {tilt && (
-        <>
-          {/* Pre-drawn glow spots moved with transforms: no repaint per mouse move. */}
-          <span className="card-spotlight" aria-hidden="true">
-            <motion.span className="card-spotlight-dot" style={{ x: mx, y: my }} />
-          </span>
-          <span className="card-ring" aria-hidden="true">
-            <motion.span className="card-ring-dot" style={{ x: mx, y: my }} />
-          </span>
-        </>
-      )}
       {children}
     </motion.section>
   );
@@ -229,14 +171,17 @@ export function Modal({
   children,
   onClose,
   size = 'normal',
-  tone = 'light'
+  tone = 'light',
+  bare = false
 }: {
   title: string;
   description?: string;
   children: ReactNode;
   onClose: () => void;
-  size?: 'normal' | 'wide';
+  size?: 'normal' | 'wide' | 'xl';
   tone?: 'light' | 'dark';
+  /** No standard header: the content lays itself out (the title stays for screen readers). */
+  bare?: boolean;
 }) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -282,16 +227,29 @@ export function Modal({
         exit={{ opacity: 0, y: 14, scale: 0.98, transition: { duration: 0.16, ease: 'easeIn' } }}
         transition={{ type: 'spring', stiffness: 380, damping: 32, mass: 0.8 }}
       >
-        <div className="modal-head">
-          <div>
-            <h2 id="modal-title">{title}</h2>
-            {description && <p>{description}</p>}
-          </div>
-          <IconButton label="Закрыть окно" onClick={onClose} className="modal-close">
-            <X size={18} />
-          </IconButton>
-        </div>
-        {children}
+        {bare ? (
+          <>
+            <h2 id="modal-title" className="visually-hidden">{title}</h2>
+            <IconButton label="Закрыть окно" onClick={onClose} className="modal-close modal-close-floating">
+              <X size={18} />
+            </IconButton>
+            {children}
+          </>
+        ) : (
+          <>
+            <div className="modal-head">
+              <div>
+                <h2 id="modal-title">{title}</h2>
+                {description && <p>{description}</p>}
+              </div>
+              <IconButton label="Закрыть окно" onClick={onClose} className="modal-close">
+                <X size={18} />
+              </IconButton>
+            </div>
+            {/* The body scrolls inside the rounded window, so the scrollbar never crosses its corners. */}
+            <div className="modal-body">{children}</div>
+          </>
+        )}
       </motion.div>
     </motion.div>,
     document.body
@@ -318,7 +276,7 @@ export function ConfirmDialog({
   return (
     <Modal title={title} description={description} onClose={onCancel}>
       <div className="dialog-actions">
-        <Button type="button" variant="ghost" onClick={onCancel}>Отмена</Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>Отмена</Button>
         <Button type="button" variant={danger ? 'danger' : 'accent'} loading={loading} onClick={onConfirm}>
           {confirmText}
         </Button>

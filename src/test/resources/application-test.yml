@@ -22,3 +22,6 @@ app:
     jwt-expiration-ms: 86400000
   cors:
     allowed-origins: http://localhost:5173
+  clerk:
+    secret-key: sk_test_dummy_for_tests
+    authorized-parties: http://localhost:5173

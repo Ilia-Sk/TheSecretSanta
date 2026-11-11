@@ -51,6 +51,19 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void clerkSignInRequiresValidClerkToken() throws Exception {
+        mockMvc.perform(post("/api/auth/clerk"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Clerk session token is missing"));
+
+        mockMvc.perform(post("/api/auth/clerk")
+                        .header("Authorization", "Bearer not-a-clerk-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void roomValidationRejectsNegativeGiftBudget() throws Exception {
         String token = registerAndReturnToken("budget@example.com", "Budget User");
 

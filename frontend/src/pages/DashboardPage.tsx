@@ -5,7 +5,7 @@ import type { Profile, Room } from '../api';
 import { RoomCard } from '../components/RoomCard';
 import { BlurFade, NumberTicker } from '../components/magicui';
 import { Button, EmptyState, SectionTitle, SkeletonCards } from '../components/ui';
-import { BackgroundPaths, InteractiveHoverButton } from '../components/twentyfirst';
+import { Snowfall } from '../components/Snowfall';
 import { Gift3D, GiftPile, toneForStatus } from '../components/visual';
 import { useHeroDepth } from '../hooks/motion';
 import { formatBudget, formatCountdown, formatDate } from '../utils';
@@ -49,11 +49,6 @@ export function DashboardPage({
   }, [rooms]);
 
   const firstName = profile.displayName.trim().split(/\s+/)[0] || profile.displayName;
-  const today = new Intl.DateTimeFormat('ru-RU', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long'
-  }).format(new Date());
   const days = daysUntil(nextRoom?.celebrationDate ?? null);
 
   return (
@@ -63,9 +58,6 @@ export function DashboardPage({
           Комнаты.
           <span> Добрый день, {firstName}. Подарки ждут.</span>
         </h1>
-        <div className="store-header-aside">
-          <span className="eyebrow">{today}</span>
-        </div>
       </BlurFade>
 
       <motion.section
@@ -76,9 +68,8 @@ export function DashboardPage({
         transition={{ duration: 0.9, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="hero-aurora" aria-hidden="true" />
-        <BackgroundPaths className="spotlight-paths" count={30} angle={-14} speed={0.6} />
+        <Snowfall density={0.7} />
         <div className="spotlight-copy">
-          <span className="eyebrow eyebrow-warm">Ближайшее событие</span>
           {nextRoom ? (
             <>
               <h2>{nextRoom.name}</h2>
@@ -91,20 +82,20 @@ export function DashboardPage({
                 <p className="spotlight-sub">{formatCountdown(nextRoom.celebrationDate)}</p>
               )}
               <p className="spotlight-meta">
-                {formatDate(nextRoom.celebrationDate)} · {nextRoom.participants.length} участников · {formatBudget(nextRoom.giftBudget)}
+                Ближайший праздник · {formatDate(nextRoom.celebrationDate)} · {nextRoom.participants.length} участников · {formatBudget(nextRoom.giftBudget)}
               </p>
               <div className="spotlight-actions">
-                <InteractiveHoverButton type="button" tone="dark" onClick={() => onOpenRoom(nextRoom.id)}>Открыть комнату</InteractiveHoverButton>
+                <Button variant="accent" onClick={() => onOpenRoom(nextRoom.id)}>Открыть комнату</Button>
               </div>
             </>
           ) : (
             <>
-              <h2>Пока не выбрано</h2>
+              <h2>Первая комната</h2>
               <p className="spotlight-sub">
                 Создайте первую комнату, пригласите участников и сохраните момент раскрытия до самого праздника.
               </p>
               <div className="spotlight-actions">
-                <Button type="button" variant="metal" onClick={onCreateRoom}><Plus size={17} />Создать комнату</Button>
+                <Button variant="accent" onClick={onCreateRoom}><Plus size={17} />Создать комнату</Button>
               </div>
             </>
           )}
@@ -119,13 +110,13 @@ export function DashboardPage({
       </motion.section>
 
       <section className="rooms-section">
-        <SectionTitle eyebrow="Коллекция" title="Мои комнаты." />
+        <SectionTitle title="Мои комнаты." />
 
         {loading ? (
           <SkeletonCards />
         ) : rooms.length === 0 ? (
           <>
-          <GiftPile className="empty-pile" count={10} width={16} hint="Поиграйте с подарками, пока комнат нет" />
+          <GiftPile className="empty-pile" count={10} width={16} />
           <EmptyState
             title="Создайте первую комнату Тайного Санты"
             text="Добавьте дату, бюджет и пожелания. После этого можно отправить приглашение друзьям или коллегам."
@@ -142,13 +133,10 @@ export function DashboardPage({
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              whileHover={{ y: -4 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             >
-              <motion.span className="create-plus" whileHover={{ rotate: 90, scale: 1.08 }}><Plus size={26} /></motion.span>
+              <span className="create-plus"><Plus size={26} /></span>
               <strong>Новая комната</strong>
-              <small>Дата, бюджет, участники и первое приглашение</small>
             </motion.button>
           </div>
         )}

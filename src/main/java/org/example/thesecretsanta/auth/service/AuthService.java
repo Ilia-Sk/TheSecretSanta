@@ -3,10 +3,16 @@ package org.example.thesecretsanta.auth.service;
 import org.example.thesecretsanta.auth.dao.PasswordResetTokenRepository;
 import org.example.thesecretsanta.auth.domain.PasswordResetToken;
 import org.example.thesecretsanta.auth.dto.AuthResponse;
+import org.example.thesecretsanta.auth.dto.ClerkSignInRequest;
 import org.example.thesecretsanta.auth.dto.ForgotPasswordRequest;
 import org.example.thesecretsanta.auth.dto.LoginRequest;
 import org.example.thesecretsanta.auth.dto.RegisterRequest;
 import org.example.thesecretsanta.auth.dto.ResetPasswordRequest;
+import org.example.thesecretsanta.clerk.ClerkClient;
+import org.example.thesecretsanta.clerk.ClerkSession;
+import org.example.thesecretsanta.clerk.ClerkTokenVerifier;
+import org.example.thesecretsanta.clerk.ClerkUser;
+import org.example.thesecretsanta.clerk.LoginRequiredException;
 import org.example.thesecretsanta.common.dto.MessageResponse;
 import org.example.thesecretsanta.config.AppProperties;
 import org.example.thesecretsanta.mail.MailClient;
@@ -24,6 +30,8 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 @Service
 public class AuthService {
@@ -37,6 +45,8 @@ public class AuthService {
     private final MailClient mailClient;
     private final AppProperties appProperties;
     private final UserNameService userNameService;
+    private final ClerkTokenVerifier clerkTokenVerifier;
+    private final ClerkClient clerkClient;
 
     public AuthService(
             UserRepository userRepository,
@@ -46,7 +56,9 @@ public class AuthService {
             JwtService jwtService,
             MailClient mailClient,
             AppProperties appProperties,
-            UserNameService userNameService
+            UserNameService userNameService,
+            ClerkTokenVerifier clerkTokenVerifier,
+            ClerkClient clerkClient
     ) {
         this.userRepository = userRepository;
         this.resetTokenRepository = resetTokenRepository;
@@ -56,6 +68,65 @@ public class AuthService {
         this.mailClient = mailClient;
         this.appProperties = appProperties;
         this.userNameService = userNameService;
+        this.clerkTokenVerifier = clerkTokenVerifier;
+        this.clerkClient = clerkClient;
+    }
+
+    /**
+     * Exchanges a Clerk session token for the app's own JWT.
+     * <ol>
+     *   <li>An account already linked to this Clerk user signs in right away.</li>
+     *   <li>Otherwise the verified email from Clerk links an existing account (registered before Clerk).</li>
+     *   <li>Otherwise a new account is created with the login chosen at sign-up;
+     *       without a login (e.g. Google sign-up) {@link LoginRequiredException} asks the frontend for one.</li>
+     * </ol>
+     */
+    @Transactional
+    public AuthResponse signInWithClerk(String clerkToken, ClerkSignInRequest request) {
+        ClerkSession session = clerkTokenVerifier.verify(clerkToken);
+        Optional<User> linked = userRepository.findByClerkId(session.userId());
+        if (linked.isPresent()) {
+            return issueToken(linked.get());
+        }
+
+        ClerkUser clerkUser = clerkClient.fetchUser(session.userId());
+        if (clerkUser.email() == null) {
+            throw new IllegalArgumentException("Clerk account has no email address");
+        }
+        if (!clerkUser.emailVerified()) {
+            throw new IllegalArgumentException("Email address is not verified yet");
+        }
+
+        Optional<User> byEmail = userRepository.findByEmail(clerkUser.email());
+        if (byEmail.isPresent()) {
+            User user = byEmail.get();
+            user.linkClerk(session.userId());
+            return issueToken(user);
+        }
+
+        String requestedLogin = request == null ? null : request.login();
+        String displayName = Stream.of(requestedLogin, clerkUser.metadataLogin(), clerkUser.username())
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .findFirst()
+                .orElseThrow(() -> new LoginRequiredException("Choose a login to finish sign-up"));
+        String login = userNameService.normalize(displayName);
+        if (userRepository.existsByUsername(login) || userRepository.existsByDisplayNameIgnoreCase(displayName)) {
+            throw new LoginRequiredException("Name is already taken");
+        }
+
+        // Clerk owns the password; the local hash is random and never used for sign-in.
+        User user = new User(clerkUser.email(), login, passwordEncoder.encode(randomToken()), displayName);
+        user.linkClerk(session.userId());
+        if (clerkUser.imageUrl() != null) {
+            user.updateAvatar(clerkUser.imageUrl());
+        }
+        return issueToken(userRepository.save(user));
+    }
+
+    private AuthResponse issueToken(User user) {
+        String token = jwtService.generateToken(user, user.getId(), user.getDisplayName());
+        return new AuthResponse(token, user.getId(), user.getEmail(), user.getLogin(), user.getDisplayName(), user.getAvatarUrl());
     }
 
     @Transactional

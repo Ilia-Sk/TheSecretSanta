@@ -1,5 +1,6 @@
 package org.example.thesecretsanta.config;
 
+import org.example.thesecretsanta.clerk.ClerkProperties;
 import org.example.thesecretsanta.security.JwtAuthenticationFilter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -30,7 +31,7 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties({SecurityProperties.class, CorsProperties.class, AppProperties.class})
+@EnableConfigurationProperties({SecurityProperties.class, CorsProperties.class, AppProperties.class, ClerkProperties.class})
 public class SecurityConfig {
 
     @Bean

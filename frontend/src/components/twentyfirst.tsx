@@ -378,27 +378,38 @@ export function TextRotate({
     return i * staggerDuration;
   };
 
+  const longest = useMemo(() => texts.reduce((a, b) => (b.length > a.length ? b : a), ''), [texts]);
+
+  // The widest word sits invisibly in the same grid cell, so the line never
+  // changes width or wraps. The old word fades up quickly, then the new one
+  // rises letter by letter — the two never overlap.
   return (
-    <motion.span className={`tf-text-rotate ${className}`.trim()} layout transition={{ type: 'spring', damping: 30, stiffness: 400 }}>
+    <span className={`tf-text-rotate ${className}`.trim()}>
       <span className="sr-only">{texts[index]}</span>
+      <span className={`tf-text-rotate-sizer ${elementClassName}`.trim()} aria-hidden="true">{longest}</span>
       <AnimatePresence mode="wait" initial={false}>
-        <motion.span key={index} className="tf-text-rotate-word" aria-hidden="true" layout>
+        <motion.span
+          key={index}
+          className="tf-text-rotate-word"
+          aria-hidden="true"
+          exit={{ opacity: 0, y: '-0.3em' }}
+          transition={{ duration: 0.18, ease: [0.4, 0, 1, 1] }}
+        >
           {chars.map((char, i) => (
             <span key={`${index}-${i}`} className="tf-text-rotate-mask">
               <motion.span
                 className={`tf-text-rotate-char ${elementClassName}`.trim()}
                 initial={{ y: '100%' }}
                 animate={{ y: 0 }}
-                exit={{ y: '-120%' }}
                 transition={{ type: 'spring', damping: 30, stiffness: 400, delay: delay(i) }}
               >
-                {char === ' ' ? ' ' : char}
+                {char === ' ' ? '\u00a0' : char}
               </motion.span>
             </span>
           ))}
         </motion.span>
       </AnimatePresence>
-    </motion.span>
+    </span>
   );
 }
 

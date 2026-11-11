@@ -38,6 +38,10 @@ public class User implements UserDetails {
     @Column(length = 600)
     private String avatarUrl;
 
+    /** Clerk user id ("user_..."), set once the account signs in through Clerk. */
+    @Column(unique = true, length = 64)
+    private String clerkId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private Role role = Role.USER;
@@ -73,6 +77,14 @@ public class User implements UserDetails {
 
     public String getAvatarUrl() {
         return avatarUrl;
+    }
+
+    public String getClerkId() {
+        return clerkId;
+    }
+
+    public void linkClerk(String clerkId) {
+        this.clerkId = clerkId;
     }
 
     public void updateProfile(String username, String displayName, String avatarUrl) {

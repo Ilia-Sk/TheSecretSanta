@@ -274,6 +274,18 @@ type DockItemInjected = {
   distance?: number;
 };
 
+/** Root font size / 16 — 1 on phones and at the 1440px design width, more on bigger screens. */
+function useRootScale() {
+  const read = () => (typeof window === 'undefined' ? 1 : parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 || 1);
+  const [scale, setScale] = useState(read);
+  useEffect(() => {
+    const update = () => setScale(read());
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  return scale;
+}
+
 export function Dock({
   children,
   className = '',
@@ -290,6 +302,8 @@ export function Dock({
   label: string;
 }) {
   const mouseX = useMotionValue(Infinity);
+  // Icon sizes are pixels for the spring; scale them with the root font size (styles.css → html).
+  const scale = useRootScale();
   return (
     <motion.div
       role="tablist"
@@ -304,7 +318,7 @@ export function Dock({
       transition={{ type: 'spring', stiffness: 220, damping: 26, delay: 0.25 }}
     >
       {Children.map(children, (child) => isValidElement(child)
-        ? cloneElement(child as ReactElement<DockItemInjected>, { mouseX, size: iconSize, magnification: iconMagnification, distance: iconDistance })
+        ? cloneElement(child as ReactElement<DockItemInjected>, { mouseX, size: iconSize * scale, magnification: iconMagnification * scale, distance: iconDistance * scale })
         : child)}
     </motion.div>
   );

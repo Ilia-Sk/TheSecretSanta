@@ -395,7 +395,7 @@ export function CubeGift({
   return (
     <div
       className={`cube-gift tone-${tone} ${open ? 'is-open' : ''} ${spin ? 'is-spinning' : ''} ${draggable ? 'is-draggable' : ''} ${className}`.trim()}
-      style={{ '--s': `${size}px` } as CSSProperties}
+      style={{ '--s': `${size / 16}rem` } as CSSProperties}
       aria-hidden="true"
       {...dragProps}
     >
@@ -638,7 +638,6 @@ export function ProductShelf({ links, toHref }: { links: string[]; toHref: (link
   return (
     <div className="product-shelf">
       {links.map((link, index) => <ProductBox key={link} link={link} href={toHref(link)} index={index} />)}
-      <span className="product-shelf-hint">Потяните коробку, чтобы повернуть</span>
     </div>
   );
 }

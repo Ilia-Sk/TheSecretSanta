@@ -1,6 +1,8 @@
 package org.example.thesecretsanta.common;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.example.thesecretsanta.clerk.ClerkAuthException;
+import org.example.thesecretsanta.clerk.LoginRequiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -14,6 +16,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleBadRequest(IllegalArgumentException exception) {
         return build(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    @ExceptionHandler(ClerkAuthException.class)
+    public ResponseEntity<ApiError> handleClerkAuth(ClerkAuthException exception) {
+        HttpStatus status = exception.isNotConfigured() ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.UNAUTHORIZED;
+        return build(status, exception.getMessage());
+    }
+
+    @ExceptionHandler(LoginRequiredException.class)
+    public ResponseEntity<ApiError> handleLoginRequired(LoginRequiredException exception) {
+        HttpStatus status = HttpStatus.CONFLICT;
+        return ResponseEntity.status(status)
+                .body(ApiError.of(status.value(), status.getReasonPhrase(), exception.getMessage(), LoginRequiredException.CODE));
     }
 
     @ExceptionHandler(EntityNotFoundException.class)
