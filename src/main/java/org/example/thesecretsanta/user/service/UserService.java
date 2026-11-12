@@ -63,7 +63,7 @@ public class UserService implements UserDetailsService {
                 || userRepository.existsByDisplayNameIgnoreCaseAndIdNot(displayName, user.getId())) {
             throw new IllegalArgumentException("Name is already taken");
         }
-        user.updateProfile(username, displayName, trimToNull(request.avatarUrl()));
+        user.updateProfile(username, displayName, safeAvatarUrl(trimToNull(request.avatarUrl())));
         return mapProfile(user, jwtService.generateToken(user, user.getId(), user.getDisplayName()));
     }
 
@@ -77,6 +77,12 @@ public class UserService implements UserDetailsService {
         }
         if (file.getSize() > 3 * 1024 * 1024) {
             throw new IllegalArgumentException("Avatar file is too large");
+        }
+
+        // The Content-Type header comes from the client; trust the file's own signature instead.
+        String detectedType = detectImageType(file);
+        if (detectedType == null || !detectedType.equals(file.getContentType())) {
+            throw new IllegalArgumentException("Avatar must be JPG, PNG or WEBP");
         }
 
         User user = getCurrentUser(userDetails);
@@ -99,6 +105,48 @@ public class UserService implements UserDetailsService {
 
     private ProfileResponse mapProfile(User user, String token) {
         return new ProfileResponse(user.getId(), user.getEmail(), user.getLogin(), user.getDisplayName(), user.getAvatarUrl(), token);
+    }
+
+    /** Avatar may be our own upload or an https image (e.g. from Google via Clerk) — nothing else. */
+    static String safeAvatarUrl(String value) {
+        if (value == null) {
+            return null;
+        }
+        if (value.matches("/uploads/avatars/[A-Za-z0-9._-]+")) {
+            return value;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(value);
+            if ("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null) {
+                return value;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // falls through
+        }
+        throw new IllegalArgumentException("Avatar URL must be an https link");
+    }
+
+    /** JPEG / PNG / WEBP by magic bytes; null for anything else. */
+    static String detectImageType(MultipartFile file) {
+        byte[] head = new byte[12];
+        int read;
+        try (java.io.InputStream in = file.getInputStream()) {
+            read = in.readNBytes(head, 0, head.length);
+        } catch (IOException ex) {
+            return null;
+        }
+        if (read >= 3 && (head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xD8 && (head[2] & 0xFF) == 0xFF) {
+            return "image/jpeg";
+        }
+        if (read >= 8 && (head[0] & 0xFF) == 0x89 && head[1] == 'P' && head[2] == 'N' && head[3] == 'G'
+                && head[4] == 0x0D && head[5] == 0x0A && head[6] == 0x1A && head[7] == 0x0A) {
+            return "image/png";
+        }
+        if (read >= 12 && head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F'
+                && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P') {
+            return "image/webp";
+        }
+        return null;
     }
 
     private String extensionFor(String contentType) {

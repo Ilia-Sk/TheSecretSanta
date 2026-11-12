@@ -22,7 +22,10 @@ app:
     polling: false
   public-url: http://localhost:5173
   upload-dir: build/test-uploads
+  rate-limit:
+    enabled: false
   security:
+    password-auth-enabled: true
     jwt-secret: test-secret-key-test-secret-key-test-secret-key
     jwt-expiration-ms: 86400000
   cors:

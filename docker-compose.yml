@@ -9,7 +9,8 @@ services:
       MYSQL_PASSWORD: santa_password
       MYSQL_ROOT_PASSWORD: root_password
     ports:
-      - "23307:3306"
+      # only this computer can reach the dev database (its passwords are public dev defaults)
+      - "127.0.0.1:23307:3306"
     volumes:
       - secret-santa-mysql-data:/var/lib/mysql
     healthcheck:

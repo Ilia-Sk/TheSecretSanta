@@ -313,7 +313,8 @@ public class RoomService {
                         participant.getUser().getId().equals(currentUser.getId()) ? participant.getWishlistLinks() : null
                 ))
                 .toList();
-        List<RestrictionResponse> restrictions = restrictionRepository.findByRoomId(room.getId()).stream()
+        // who may not gift whom is the organiser's business: other participants get an empty list
+        List<RestrictionResponse> restrictions = !room.isOwner(currentUser) ? List.of() : restrictionRepository.findByRoomId(room.getId()).stream()
                 .map(restriction -> new RestrictionResponse(
                         restriction.getId(),
                         restriction.getGiver().getId(),

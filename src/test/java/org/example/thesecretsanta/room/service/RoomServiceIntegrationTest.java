@@ -365,6 +365,26 @@ class RoomServiceIntegrationTest {
                 .hasMessage("Room is already drawn or closed");
     }
 
+    @Test
+    void onlyOwnerSeesRestrictions() {
+        User owner = register("owner-restr@example.com", "Restr Owner");
+        User first = register("first-restr@example.com", "Restr First");
+        User second = register("second-restr@example.com", "Restr Second");
+        RoomResponse room = roomService.createRoom(new CreateRoomRequest("Restr Room", null, null, null, null, null), owner);
+        roomService.joinRoom(room.inviteCode(), new JoinRoomRequest(null, null), first);
+        RoomResponse withParticipants = roomService.joinRoom(room.inviteCode(), new JoinRoomRequest(null, null), second);
+        Map<String, ParticipantResponse> byName = withParticipants.participants().stream()
+                .collect(Collectors.toMap(ParticipantResponse::displayName, Function.identity()));
+        roomService.addRestriction(room.id(), new AddRestrictionRequest(
+                byName.get("Restr First").participantId(),
+                byName.get("Restr Second").participantId()
+        ), owner);
+
+        assertThat(roomService.getRoom(room.id(), owner).restrictions()).hasSize(1);
+        assertThat(roomService.getRoom(room.id(), first).restrictions()).isEmpty();
+        assertThat(roomService.getMyRooms(second)).allSatisfy(r -> assertThat(r.restrictions()).isEmpty());
+    }
+
     private User register(String email, String displayName) {
         Long userId = authService.register(new RegisterRequest(email, "secret123", displayName)).userId();
         return userRepository.findById(userId).orElseThrow();

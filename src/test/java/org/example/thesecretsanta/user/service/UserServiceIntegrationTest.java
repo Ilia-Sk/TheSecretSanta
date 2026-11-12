@@ -46,13 +46,26 @@ class UserServiceIntegrationTest {
                 "file",
                 "avatar.png",
                 "image/png",
-                new byte[]{1, 2, 3}
+                new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0x0D}
         );
 
         ProfileResponse profile = userService.uploadAvatar(avatar, user);
 
         assertThat(profile.avatarUrl()).startsWith("/uploads/avatars/" + user.getId() + "-");
         assertThat(profile.avatarUrl()).endsWith(".png");
+    }
+
+    @Test
+    void uploadAvatarRejectsFileWhoseContentIsNotAnImage() {
+        User user = register("fake-avatar@example.com", "Fake Avatar");
+        // claims to be a PNG but is an HTML page with a script
+        MockMultipartFile avatar = new MockMultipartFile(
+                "file", "avatar.png", "image/png", "<html><script>alert(1)</script></html>".getBytes()
+        );
+
+        assertThatThrownBy(() -> userService.uploadAvatar(avatar, user))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Avatar must be JPG, PNG or WEBP");
     }
 
     @Test

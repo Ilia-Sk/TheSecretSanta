@@ -1,5 +1,6 @@
 package org.example.thesecretsanta.room.dto;
 
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -12,6 +13,6 @@ public record UpdateRoomRequest(
         @NotBlank @Size(max = 140) String name,
         @Size(max = 800) String description,
         @FutureOrPresent LocalDate celebrationDate,
-        @PositiveOrZero BigDecimal giftBudget
+        @PositiveOrZero @DecimalMax("100000000") BigDecimal giftBudget
 ) {
 }

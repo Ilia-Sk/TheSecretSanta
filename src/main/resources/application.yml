@@ -14,9 +14,10 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
   servlet:
     multipart:
       max-file-size: 3MB
@@ -42,6 +43,12 @@ spring:
 
 server:
   port: 8080
+  error:
+    # never leak internals in error responses
+    include-stacktrace: never
+    include-exception: false
+    include-message: never
+    include-binding-errors: never
 
 app:
   mail:
@@ -55,7 +62,11 @@ app:
     polling: ${TELEGRAM_POLLING:true}
   public-url: ${APP_PUBLIC_URL:http://localhost:5173}
   upload-dir: ${APP_UPLOAD_DIR:uploads}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
   security:
+    # old e-mail+password endpoints (no e-mail verification) — keep off, sign-in goes through Clerk
+    password-auth-enabled: ${PASSWORD_AUTH_ENABLED:false}
     jwt-secret: ${JWT_SECRET:change-this-secret-key-change-this-secret-key}
     jwt-expiration-ms: 86400000
   cors:

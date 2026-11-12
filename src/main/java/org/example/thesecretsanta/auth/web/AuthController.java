@@ -9,19 +9,36 @@ import org.example.thesecretsanta.auth.dto.RegisterRequest;
 import org.example.thesecretsanta.auth.dto.ResetPasswordRequest;
 import org.example.thesecretsanta.auth.service.AuthService;
 import org.example.thesecretsanta.common.dto.MessageResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
     private final AuthService authService;
+    /**
+     * The old e-mail + password endpoints (register, login, password reset) skip
+     * e-mail verification: anyone could register someone else's address and then
+     * be linked to that person's Clerk sign-in. Sign-in goes through Clerk, so they
+     * are off unless explicitly enabled (tests, local experiments).
+     */
+    private final boolean passwordAuthEnabled;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, @Value("${app.security.password-auth-enabled:false}") boolean passwordAuthEnabled) {
         this.authService = authService;
+        this.passwordAuthEnabled = passwordAuthEnabled;
+    }
+
+    private void requirePasswordAuth() {
+        if (!passwordAuthEnabled) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
     }
 
     /** Sign-in through Clerk: Authorization: Bearer &lt;Clerk session token&gt; → the app's JWT. */
@@ -36,21 +53,25 @@ public class AuthController {
 
     @PostMapping("/register")
     public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
+        requirePasswordAuth();
         return authService.register(request);
     }
 
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
+        requirePasswordAuth();
         return authService.login(request);
     }
 
     @PostMapping("/forgot-password")
     public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        requirePasswordAuth();
         return authService.forgotPassword(request);
     }
 
     @PostMapping("/reset-password")
     public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        requirePasswordAuth();
         return authService.resetPassword(request);
     }
 }
