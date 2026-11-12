@@ -32,11 +32,21 @@ spring:
           auth: true
           starttls:
             enable: true
+          # port 465 needs SSL instead of STARTTLS: MAIL_SSL=true
+          ssl:
+            enable: ${MAIL_SSL:false}
+          # never wait forever for the mail server (milliseconds)
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
 
 server:
   port: 8080
 
 app:
+  mail:
+    # Sender address, e.g. "Тайный Санта <noreply@thesecretsanta.by>"; empty = MAIL_USERNAME
+    from: ${MAIL_FROM:}
   telegram:
     # Anonymous chat bot (optional). Create a bot with @BotFather and put the token in .env:
     # TELEGRAM_BOT_TOKEN=123456:ABC...   TELEGRAM_BOT_USERNAME=MySantaBot

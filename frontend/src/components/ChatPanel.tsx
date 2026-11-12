@@ -73,7 +73,19 @@ export function ChatPanel({ roomId, token, onToast }: { roomId: number; token: s
     const id = window.setInterval(() => {
       if (!document.hidden) void loadDialogs();
     }, DIALOG_POLL_MS);
-    return () => window.clearInterval(id);
+    // Back from another app / tab or the network returned: refresh right away.
+    const refresh = () => {
+      if (!document.hidden) void loadDialogs();
+    };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('online', refresh);
+    window.addEventListener('pageshow', refresh);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('online', refresh);
+      window.removeEventListener('pageshow', refresh);
+    };
   }, [loadDialogs]);
 
   // Full history when a conversation opens, then only what is new.
@@ -81,13 +93,22 @@ export function ChatPanel({ roomId, token, onToast }: { roomId: number; token: s
     if (activeId === null) return;
     let cancelled = false;
     let lastId: number | null = null;
+    // One request at a time: after the phone wakes up, polls must not pile up.
+    let inFlight = false;
     stickToBottom.current = true;
     setLoadingMessages(true);
     setMessages([]);
 
     const fetchMessages = async () => {
+      if (inFlight) return;
+      inFlight = true;
       const query = lastId === null ? '' : `?after=${lastId}`;
-      const next = await request<ChatMessage[]>(`/chats/${activeId}/messages${query}`, {}, token);
+      let next: ChatMessage[];
+      try {
+        next = await request<ChatMessage[]>(`/chats/${activeId}/messages${query}`, {}, token);
+      } finally {
+        inFlight = false;
+      }
       if (cancelled) return;
       if (next.length) {
         lastId = next[next.length - 1].id;
@@ -105,9 +126,21 @@ export function ChatPanel({ roomId, token, onToast }: { roomId: number; token: s
     const id = window.setInterval(() => {
       if (!document.hidden) fetchMessages().catch(() => undefined);
     }, MESSAGE_POLL_MS);
+    const refresh = () => {
+      if (document.hidden) return;
+      fetchMessages()
+        .catch(() => undefined)
+        .finally(() => !cancelled && setLoadingMessages(false));
+    };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('online', refresh);
+    window.addEventListener('pageshow', refresh);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('online', refresh);
+      window.removeEventListener('pageshow', refresh);
     };
   }, [activeId, token]);
 

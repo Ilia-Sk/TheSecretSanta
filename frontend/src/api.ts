@@ -74,15 +74,31 @@ export class ApiRequestError extends Error {
 const defaultApiUrl = `${window.location.origin}/api`;
 const API_URL = import.meta.env.VITE_API_URL ?? defaultApiUrl;
 
+/** A request that got no answer in time (e.g. a connection a phone killed while the app was in the background). */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 export async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers
-    }
-  });
+  // Never wait forever: after a phone app is reopened, requests sent over the old
+  // connection can hang with no error, freezing whatever waits for them.
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      signal: options.signal ?? controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers
+      }
+    });
+  } catch {
+    const timedOut = controller.signal.aborted;
+    throw new ApiRequestError(timedOut ? 'Сервер не ответил, попробуйте ещё раз' : 'Нет связи с сервером', 0, timedOut ? 'TIMEOUT' : 'NETWORK');
+  } finally {
+    window.clearTimeout(timer);
+  }
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
