@@ -1,6 +1,7 @@
 package org.example.thesecretsanta.room.service;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.example.thesecretsanta.chat.dao.ChatMessageRepository;
 import org.example.thesecretsanta.config.AppProperties;
 import org.example.thesecretsanta.mail.MailClient;
 import org.example.thesecretsanta.room.dao.DrawRestrictionRepository;
@@ -22,6 +23,8 @@ import org.example.thesecretsanta.room.dto.RestrictionResponse;
 import org.example.thesecretsanta.room.dto.RoomResponse;
 import org.example.thesecretsanta.room.dto.UpdateRoomRequest;
 import org.example.thesecretsanta.room.dto.UpdateWishlistRequest;
+import org.example.thesecretsanta.telegram.TelegramAccountRepository;
+import org.example.thesecretsanta.telegram.TelegramRelayRepository;
 import org.example.thesecretsanta.user.domain.User;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -49,6 +52,9 @@ public class RoomService {
     private final GiftAssignmentRepository assignmentRepository;
     private final MailClient mailClient;
     private final AppProperties appProperties;
+    private final ChatMessageRepository chatMessageRepository;
+    private final TelegramRelayRepository telegramRelayRepository;
+    private final TelegramAccountRepository telegramAccountRepository;
 
     public RoomService(
             RoomRepository roomRepository,
@@ -56,7 +62,10 @@ public class RoomService {
             DrawRestrictionRepository restrictionRepository,
             GiftAssignmentRepository assignmentRepository,
             MailClient mailClient,
-            AppProperties appProperties
+            AppProperties appProperties,
+            ChatMessageRepository chatMessageRepository,
+            TelegramRelayRepository telegramRelayRepository,
+            TelegramAccountRepository telegramAccountRepository
     ) {
         this.roomRepository = roomRepository;
         this.participantRepository = participantRepository;
@@ -64,6 +73,9 @@ public class RoomService {
         this.assignmentRepository = assignmentRepository;
         this.mailClient = mailClient;
         this.appProperties = appProperties;
+        this.chatMessageRepository = chatMessageRepository;
+        this.telegramRelayRepository = telegramRelayRepository;
+        this.telegramAccountRepository = telegramAccountRepository;
     }
 
     @Transactional
@@ -228,6 +240,10 @@ public class RoomService {
     }
 
     private void deleteRoomGraph(Room room) {
+        // The chat hangs off the assignments, so it goes first.
+        chatMessageRepository.deleteByRoom(room);
+        telegramRelayRepository.deleteByRoom(room);
+        telegramAccountRepository.clearActiveInRoom(room);
         assignmentRepository.deleteByRoom(room);
         restrictionRepository.deleteByRoom(room);
         participantRepository.deleteByRoom(room);

@@ -2,6 +2,8 @@ services:
   mysql:
     image: mysql:8.4
     restart: unless-stopped
+    # small-server settings: ~300 MB instead of ~500 MB
+    command: ["--performance-schema=OFF", "--innodb-buffer-pool-size=128M", "--max-connections=50"]
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
@@ -22,6 +24,8 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      # keep Java within ~600 MB on a 2 GB server
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms128m -Xmx512m -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m}
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?createDatabaseIfNotExist=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
@@ -35,6 +39,8 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       CLERK_AUTHORIZED_PARTIES: https://${SITE_DOMAIN}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
     volumes:
       - secret-santa-uploads:/app/uploads
     depends_on:

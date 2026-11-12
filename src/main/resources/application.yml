@@ -37,6 +37,12 @@ server:
   port: 8080
 
 app:
+  telegram:
+    # Anonymous chat bot (optional). Create a bot with @BotFather and put the token in .env:
+    # TELEGRAM_BOT_TOKEN=123456:ABC...   TELEGRAM_BOT_USERNAME=MySantaBot
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    bot-username: ${TELEGRAM_BOT_USERNAME:}
+    polling: ${TELEGRAM_POLLING:true}
   public-url: ${APP_PUBLIC_URL:http://localhost:5173}
   upload-dir: ${APP_UPLOAD_DIR:uploads}
   security:

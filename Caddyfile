@@ -2,3 +2,7 @@
     encode gzip
     reverse_proxy frontend:80
 }
+
+www.{$SITE_DOMAIN} {
+    redir https://{$SITE_DOMAIN}{uri} permanent
+}

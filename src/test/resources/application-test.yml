@@ -15,6 +15,11 @@ spring:
     host:
 
 app:
+  telegram:
+    # tests never talk to the real bot, even if a developer's .env has a token
+    bot-token: ""
+    bot-username: ""
+    polling: false
   public-url: http://localhost:5173
   upload-dir: build/test-uploads
   security:

@@ -149,6 +149,27 @@ Sign-in and sign-up go through [Clerk](https://clerk.com): email + password (the
 
 Never commit the secret key. Without the keys the site still opens and shows "Вход не настроен" instead of the sign-in form.
 
+## Anonymous chat and the Telegram bot
+
+After the draw every room gets a **Чат** tab with two conversations: with the person you give a gift to, and with your own Secret Santa. The Santa is always anonymous — the recipient only ever sees "Тайный Санта".
+
+New messages are delivered:
+
+- to **Telegram**, if the person connected the bot (Profile → «Подключить Telegram»). The bot forwards the text, and the person can answer right in Telegram: reply to a forwarded message, or pick a conversation with `/chats` and just type;
+- otherwise by **email** (at most one email per conversation every 10 minutes).
+
+Setting up the bot (optional, 2 minutes):
+
+1. In Telegram open **@BotFather** → `/newbot` → choose a name and a username ending in `bot`.
+2. Put the token and the username into `.env` in the project root:
+   ```env
+   TELEGRAM_BOT_TOKEN=1234567890:AA...
+   TELEGRAM_BOT_USERNAME=MySecretSantaBot
+   ```
+3. Restart the backend. The log shows `Telegram bot @MySecretSantaBot is listening`.
+
+The bot receives updates by long polling, so it works on a laptop without a public address. Only one running copy of the backend may poll a bot at a time (otherwise the log warns about a conflict) — use a separate bot for local development and for the server, or set `TELEGRAM_POLLING=false` on the copy that should stay quiet.
+
 ## Email Setup
 
 Email is optional locally. If SMTP settings are empty, the application starts and logs skipped email sends.

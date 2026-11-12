@@ -50,6 +50,14 @@ public class GiftAssignment {
         this.receiver = receiver;
     }
 
+    public Long getId() {
+        return id;
+    }
+
+    public Room getRoom() {
+        return room;
+    }
+
     public RoomParticipant getGiver() {
         return giver;
     }

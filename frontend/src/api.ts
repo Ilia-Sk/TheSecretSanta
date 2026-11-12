@@ -114,3 +114,34 @@ export async function uploadFile<T>(path: string, file: File, token: string): Pr
 
   return response.json();
 }
+
+/* ---------------------------------------------------------------- Chat */
+
+/** One anonymous conversation, from the current user's side. */
+export type ChatDialog = {
+  id: number;
+  roomId: number;
+  roomName: string;
+  /** SANTA: I write to my recipient. RECIPIENT: I talk to my (anonymous) Santa. */
+  role: 'SANTA' | 'RECIPIENT';
+  title: string;
+  avatarUrl: string | null;
+  lastMessage: string | null;
+  lastMessageAt: string | null;
+  lastMessageMine: boolean;
+  unread: number;
+};
+
+export type ChatMessage = {
+  id: number;
+  mine: boolean;
+  text: string;
+  createdAt: string;
+  read: boolean;
+};
+
+export type TelegramStatus = {
+  enabled: boolean;
+  linked: boolean;
+  botUsername: string | null;
+};

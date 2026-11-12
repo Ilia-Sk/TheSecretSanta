@@ -8,6 +8,7 @@ import {
   Gift,
   Link as LinkIcon,
   ListChecks,
+  MessageCircle,
   ScrollText,
   Settings,
   Shuffle,
@@ -25,6 +26,7 @@ import { StatusBadge } from '../components/RoomCard';
 import { AnimatePresence, motion } from 'motion/react';
 import { NumberTicker } from '../components/magicui';
 import { Avatar, Button, Card, ConfirmDialog, Field, IconButton, Modal, SectionTitle, TextAreaField } from '../components/ui';
+import { ChatPanel } from '../components/ChatPanel';
 import { DatePicker } from '../components/DatePicker';
 import { Snowfall } from '../components/Snowfall';
 import { CubeGift, Gift3D, GiftPile, ProductShelf, toneForStatus, type GiftTone } from '../components/visual';
@@ -32,11 +34,12 @@ import { useHeroDepth } from '../hooks/motion';
 import { formatBudget, formatDate, safeExternalHref, splitLinks, statusHints, todayDateInputValue } from '../utils';
 
 type ToastFn = (type: 'success' | 'error' | 'info', message: string) => void;
-type RoomTab = 'overview' | 'participants' | 'wishlist' | 'restrictions' | 'settings';
+type RoomTab = 'overview' | 'chat' | 'participants' | 'wishlist' | 'restrictions' | 'settings';
 type DrawPhase = 'idle' | 'requesting' | 'opening' | 'complete';
 
 const tabs: Array<{ id: RoomTab; label: string; icon: typeof Gift }> = [
   { id: 'overview', label: 'Обзор', icon: ListChecks },
+  { id: 'chat', label: 'Чат', icon: MessageCircle },
   { id: 'participants', label: 'Участники', icon: Users },
   { id: 'wishlist', label: 'Пожелания', icon: WalletCards },
   { id: 'restrictions', label: 'Ограничения', icon: Ban },
@@ -101,8 +104,8 @@ export function RoomPage({
   );
   const isOwner = room.owner || room.ownerId === currentUserId || currentParticipant?.owner === true;
   const visibleTabs = useMemo(
-    () => tabs.filter((tab) => tab.id !== 'restrictions' || isOwner),
-    [isOwner]
+    () => tabs.filter((tab) => (tab.id !== 'restrictions' || isOwner) && (tab.id !== 'chat' || room.status === 'DRAWN')),
+    [isOwner, room.status]
   );
 
   const inviteLink = `${window.location.origin}/join/${encodeURIComponent(room.inviteCode)}`;
@@ -273,8 +276,11 @@ export function RoomPage({
   function selectTab(tab: RoomTab) {
     setActiveTab(tab);
     const anchor = document.getElementById('room-content');
-    if (anchor && anchor.getBoundingClientRect().top < 160) {
-      window.scrollTo({ top: anchor.getBoundingClientRect().top + window.scrollY - 150, behavior: 'smooth' });
+    if (!anchor) return;
+    const top = anchor.getBoundingClientRect().top;
+    // The chat needs the whole screen, so bring it up; other tabs only when we are already below the hero.
+    if (tab === 'chat' || top < 160) {
+      window.scrollTo({ top: top + window.scrollY - 150, behavior: 'smooth' });
     }
   }
 
@@ -392,6 +398,12 @@ export function RoomPage({
                 onOpenAssignment={() => setShowAssignment(true)}
                 isOwner={isOwner}
               />
+            )}
+
+            {activeTab === 'chat' && room.status === 'DRAWN' && (
+              <div className="chat-section">
+                <ChatPanel roomId={room.id} token={token} onToast={onToast} />
+              </div>
             )}
 
             {activeTab === 'participants' && (

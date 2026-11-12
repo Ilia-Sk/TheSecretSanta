@@ -1,9 +1,10 @@
-import { ArrowLeft, Camera, KeyRound, LogOut, Mail, Save, UserRound } from 'lucide-react';
+import { ArrowLeft, Camera, Send, KeyRound, LogOut, Mail, Save, UserRound } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import type { Profile } from '../api';
 import { request, uploadFile } from '../api';
 import { motion } from 'motion/react';
 import { Avatar, Button, Card, Field } from '../components/ui';
+import { useTelegram } from '../hooks/telegram';
 
 export function ProfilePage({
   token,
@@ -20,6 +21,7 @@ export function ProfilePage({
   onToast: (type: 'success' | 'error' | 'info', message: string) => void;
   onLogout: () => void;
 }) {
+  const telegram = useTelegram(token, () => onToast('success', 'Telegram подключён'));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -147,6 +149,38 @@ export function ProfilePage({
             {saved && <p className="form-note success-note">Изменения сохранены.</p>}
           </form>
         </Card>
+
+        {telegram.status?.enabled && (
+          <Card className="profile-card profile-telegram" delay={0.16}>
+            <span className="tile-icon"><Send size={18} /></span>
+            <h2>Telegram</h2>
+            {telegram.status.linked ? (
+              <>
+                <p className="profile-telegram-text">
+                  Подключён{telegram.status.botUsername ? <> к <b>@{telegram.status.botUsername}</b></> : null}. Сообщения анонимного чата
+                  приходят в Telegram, отвечать можно прямо там.
+                </p>
+                <Button type="button" variant="secondary" onClick={() => telegram.disconnect().catch(() => onToast('error', 'Не удалось отключить'))}>
+                  Отключить
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="profile-telegram-text">
+                  Получайте сообщения от Тайного Санты и получателя в Telegram и отвечайте прямо там. Санта остаётся анонимным.
+                </p>
+                <Button
+                  type="button"
+                  variant="accent"
+                  loading={telegram.waiting}
+                  onClick={() => telegram.connect().catch((err) => onToast('error', err instanceof Error ? err.message : 'Не удалось подключить'))}
+                >
+                  {telegram.waiting ? 'Ждём «Start» в боте…' : 'Подключить Telegram'}
+                </Button>
+              </>
+            )}
+          </Card>
+        )}
       </div>
     </div>
   );
